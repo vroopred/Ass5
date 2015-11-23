@@ -4,6 +4,8 @@
 #include <errno.h>
 #include <stdlib.h>
 
+#include "minls.h"
+
 int main(int argc, char *argv[]) {
    int verbose = 0;
    int i = 1; 
@@ -12,7 +14,7 @@ int main(int argc, char *argv[]) {
    char* imagefile = 0;
    char* path = 0;
 
-   if(argc == 1 || argv[i][0] == '-' && argv[i][1] == 'h') {
+   if(argc == 1 || (argv[i][0] == '-' && argv[i][1] == 'h')) {
       printf(
          "usage: minls  [ -v ] [ -p num [-s num ] ] imagefile [ path ]\n"
          "Options:\n"     

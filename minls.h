@@ -1,13 +1,13 @@
-#define DIRECT ZONES 7
+#define DIRECT_ZONES 7
 /* constants */
-#define PTABLE OFFSET 0x1BE
+#define PTABLE_OFFSET 0x1BE
 #define PMAGIC510 0x55
 #define PMAGIC511 0xAA
 #define MINIXPART 0x81
 #define MIN_MAGIC 0x4d5a /* the minix magic number */
-#define MIN_MAGIC REV 0x5a4d /* the minix magic number reversed*/
-#define MIN_MAGIC OLD 0x2468 /* the v2 minix magic number */
-#define MIN_MAGIC REV OLD 0x6824 /* the v2 magic number reversed*/
+#define MIN_MAGIC_REV 0x5a4d /* the minix magic number reversed*/
+#define MIN_MAGIC_OLD 0x2468 /* the v2 minix magic number */
+#define MIN_MAGIC_REV_OLD 0x6824 /* the v2 magic number reversed*/
                                  /*we have an endian problem */
 #define MIN_ISREG(m) (((m)&0170000)==0100000)
 #define MIN_ISDIR(m) (((m)&0170000)==0040000)
@@ -54,7 +54,7 @@ uint32_t size;
 int32_t atime;
 int32_t mtime;
 int32_t ctime;
-uint32_t zone[DIRECT ZONES];
+uint32_t zone[DIRECT_ZONES];
 uint32_t indirect;
 uint32_t two_indirect;
 uint32_t unused;
@@ -78,4 +78,4 @@ int16_t magic; /* magic number */
 int16_t pad3; /* make things line up again */
 uint16_t blocksize; /* block size in bytes */
 uint8_t subversion; /* filesystem sub–version */
-}/**/
+};/**/
