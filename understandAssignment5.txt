@@ -35,3 +35,21 @@ int16 t pad3; /* make things line up again */
 uint16 t blocksize; /* block size in bytes */
 uint8 t subversion; /* filesystem sub–version */
 }
+
+ORDER
+zones->blocks->sectors->MBR/partition
+Sectors:
+1. Boot Sector
+first 1K block => contains master boot record (MBR) & partition table (if exists)
+Partitions and Subpartitions
+-partition table is located at address = 0x1BE on disk
+-partition type for minix: 0x81
+-Must check for validity before proceeding=> signature : 0x55 in byte 510 & 0xAA in 
+byte 511
+
+2. Superblock
+Next 1K Block after boot sector
+-zonesize = blocksize << log_zone_size
+
+FILES: collection of zones indexed by inode
+
