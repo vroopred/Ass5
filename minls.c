@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
    char* imagefile = 0;
    char* path = 0;
 
-   if(argc == 1) {
+   if(argc == 1 || argv[i][0] == '-' && argv[i][1] == 'h') {
       printf(
          "usage: minls  [ -v ] [ -p num [-s num ] ] imagefile [ path ]\n"
          "Options:\n"     
@@ -23,6 +23,7 @@ int main(int argc, char *argv[]) {
          );
       return 0;
    }
+
 
    if(argv[i][0] == '-' && argv[i][1] == 'v') {
       printf("Verbose\n");
