@@ -20,6 +20,8 @@
 #define MIN_IROTH 0004
 #define MIN_IWOTH 0002
 #define MIN_IXOTH 0001
+#define SECTOR_SIZE 512
+#define BLOCK_SIZE 1024
 
 #ifndef DIRSIZ
 #define DIRSIZ 60
@@ -79,3 +81,15 @@ int16_t pad3; /* make things line up again */
 uint16_t blocksize; /* block size in bytes */
 uint8_t subversion; /* filesystem sub–version */
 };/**/
+
+
+struct filesystem {
+   FILE *imageFile;
+   char *path;
+   uint32_t bootblock;
+   superblock *superBlock;
+   partition *part;
+   partition *subPart;
+   int zoneSize;
+};
+
