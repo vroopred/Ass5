@@ -28,12 +28,12 @@
 #endif
 
 
-struct fileent {
+typedef struct fileent {
 uint32_t ino;
 char name[DIRSIZ];
-};
+} fileent;
 
-struct partition {
+typedef struct partition {
 /* see include/ibm/partition.h */
 uint8_t bootind;
 uint8_t start_head; /* start head */
@@ -45,24 +45,9 @@ uint8_t end_sec; /* end sector */
 uint8_t end_cyl; /* end cylinder */
 uint32_t lFirst; /* logical first sector */
 uint32_t size; /* size of partition (in sectors )*/
-};
+} partition;
 
-struct inode {
-uint16_t mode; /* mode */
-uint16_t links; /* number or links */
-uint16_t uid;
-uint16_t gid;
-uint32_t size;
-int32_t atime;
-int32_t mtime;
-int32_t ctime;
-uint32_t zone[DIRECT_ZONES];
-uint32_t indirect;
-uint32_t two_indirect;
-uint32_t unused;
-};
-
-struct superblock { /* Minix Version 3 Superblock
+typedef struct superblock { /* Minix Version 3 Superblock
 * this structure found in fs/super.h
 * in minix 3.1.1
 */
@@ -80,16 +65,34 @@ int16_t magic; /* magic number */
 int16_t pad3; /* make things line up again */
 uint16_t blocksize; /* block size in bytes */
 uint8_t subversion; /* filesystem sub–version */
-};/**/
+} superblock;/**/
 
 
-struct filesystem {
+typedef struct inode {
+uint16_t mode; /* mode */
+uint16_t links; /* number or links */
+uint16_t uid;
+uint16_t gid;
+uint32_t size;
+int32_t atime;
+int32_t mtime;
+int32_t ctime;
+uint32_t zone[DIRECT_ZONES];
+uint32_t indirect;
+uint32_t two_indirect;
+uint32_t unused;
+} inode;
+
+typedef struct filesystem {
    FILE *imageFile;
    char *path;
    uint32_t bootblock;
    superblock *superBlock;
-   partition *part;
-   partition *subPart;
+   int part;
+   int subPart;
    int zoneSize;
-};
+} filesystem;
 
+
+void findPartition(int partitionNum);
+void findSuperBlock();

@@ -5,15 +5,19 @@
 #include <stdlib.h>
 
 #include "minls.h"
-filesystem *fileSystem;
+
+filesystem stuff;
+filesystem *fileSys;
+int verbose = 1;
 
 int main(int argc, char *argv[]) {
-   int verbose = 0;
    int i = 1; 
    int partition = 0;
    int subpartition = 0;
    char* imagefile = 0;
    char* path = 0;
+
+   fileSys = &stuff;
 
    if(argc == 1 || (argv[i][0] == '-' && argv[i][1] == 'h')) {
       printf(
@@ -41,7 +45,7 @@ int main(int argc, char *argv[]) {
       }
       i++;
       partition = atoi(argv[i++]);
-      fileSystem->part = partition;
+      fileSys->part = partition;
       printf("Partition: %d\n", partition);
       if(i < argc && argv[i][0] == '-' && argv[i][1] == 's') {
          printf("Getting here\n");
@@ -51,50 +55,50 @@ int main(int argc, char *argv[]) {
          }
          i++; 
          subpartition = atoi(argv[i++]);
-         fileSystem->subPart = subpartition;
+         fileSys->subPart = subpartition;
          printf("Subpartition: %d\n", subpartition);
       }
       else {
-         fileSystem->subPart = NULL;
+         fileSys->subPart = 0;
       }
    }
    else {
-      fileSystem->part = NULL;
+      fileSys->part = 0;
    }
 
    if(i < argc) {
       imagefile = argv[i++];
       /*open file image and set the FILE pointer to the field*/
-      fileSystem->imageFile = fopen(imagefile, "rb");
-      if (fileSystem->imageFile != 1) {
-         fprintf(stderr, "Cannot open the image file %s\n", fileSystem->imageFile);
+      fileSys->imageFile = fopen(imagefile, "rb");
+      if (fileSys->imageFile == NULL) {
+         fprintf(stderr, "Cannot open the image file %s\n", imagefile);
       }
-      fprintf(stderr, "Imagefile is %s\n", imagefile);
    }
 
    if(i < argc) {
       path = argv[i++];
-      fileSystem->path = path;
+      fileSys->path = path;
       fprintf(stderr, "Path is %s\n", path);
    }
    /*Set the bootblock*/
-   fileSystem->bootblock = 0;
+   fileSys->bootblock = 0;
    /*Partition => call findPartition() for part && subpart (disk starts at first
     sector of part for the subpart but everything else is the same)
     Superblock
     get inode
     print listing
     close file*/
-   if (fileSystem->part != NULL) {
-      findPartition(fileSystem->part);
-      if (fileSystem->subPart != NULL;) {
-         findPartition(fileSystem->subPart);
-      }
+   if (fileSys->part >= 0) {
+      findPartition(fileSys->part);
+      // if (fileSys->subPart < 0) {
+      //    findPartition(fileSys->subPart);
+      // }
    }
+   findSuperBlock();
    return 0;
 }
 
-void findPartition(int partition) {
+void findPartition(int partitionNum) {
    /*
     1. check if byte 510 == PMAGIC510 && byte 511 == PMAGIC511
         to see if the partition table is valid before proceeding
@@ -104,50 +108,69 @@ void findPartition(int partition) {
    
    partition table[4];
    /*fseek to byte 510
-    fread(set value for byte 510, 1, 1, fileSystem->imageFile);
+    fread(set value for byte 510, 1, 1, fileSys->imageFile);
     fseek to byte 511
-    fread(set value for byte 511, 1, 1, fileSystem->imageFile);
+    fread(set value for byte 511, 1, 1, fileSys->imageFile);
    if(byte 510 != PMAGIC510 && byte 511 != PMAGIC511) {
       fprintf(stderr, "Not a valid partition table\n");
       return;
    }*/
-   fseek(fileSystem->imageFile, PTABLE_OFFSET, SEEK_SET);
-   fread(table, sizeof(partition), 4, fileSystem->imageFile);
-   if (table[partition].type != MINIXPART) {
+   fseek(fileSys->imageFile, PTABLE_OFFSET, SEEK_SET);
+   fread(table, sizeof(partition), 4, fileSys->imageFile);
+   if (table[partitionNum].type != MINIXPART) {
+      //This is currently broken, maybe we don't know where to look?
       fprintf(stderr, "Not a MINIX partition table\n");
       return;
    }
-   if (verbose) {
-      /*Print the partition table*/
-   }
+   
    /*Set the bootblock to the first sector => lfirst sector in the case
     that there is subpart or for when you want to find the superblock*/
-   fileSystem->bootblock = table[partition].lFirst * SECTOR_SIZE;
+   printf("Setting bootblock\n");
+   fileSys->bootblock = table[partitionNum].lFirst * SECTOR_SIZE;
    
 }
 
-void findSuperblock() {
+void findSuperBlock() {
+  superblock super;
+  inode node; 
    /*Check the magic number to make sure it is a minix filesystem
     Set the zonesize = superblock->blocksize <<superblock->log_zone_size*/
-   fseek(fileSystem->imageFile, BLOCK_SIZE + fileSystem->bootblock, SEEK_SET);
-   fread(fileSystem->superBlock, sizeof(superBlock), 1, fileSystem->imageFile);
+   fseek(fileSys->imageFile, BLOCK_SIZE + fileSys->bootblock, SEEK_SET);
+   fread(&super, sizeof(superblock), 1, fileSys->imageFile);
    
-   if (fileSystem->superBlock->magic != MIN_MAGIC) {
+   if (super.magic != MIN_MAGIC) {
       fprintf(stderr, "Not a MINIX filesystem. Incorrect magic number\n");
       return;
    }
    if (verbose) {
       /*Print the superblock*/
+      //DOn't know how to get the zone size??????????
+      printf(
+         "Superblock Contents:\nStored Fields:\n"
+         "\tninodes%13u\n"
+         "\ti_blocks%12d\n"
+         "\tz_blocks%12d\n"
+         "\tfirstdata%11d\n"
+         "\tlog_zone_size%7d\n"
+         "\tmax_file%12u\n"
+         "\tmagic         0x%4x\n"
+         "\tzones%15u\n"
+         "\tblocksize%11u\n"
+         "\tsubversion%10u\n"
+         , super.ninodes, super.i_blocks, super.z_blocks
+         , super.firstdata, super.log_zone_size, super.max_file
+         , super.magic, super.zones, super.blocksize, super.subversion);
    }
+
+   fseek(fileSys->imageFile, fileSys->bootblock + BLOCK_SIZE + BLOCK_SIZE + super.blocksize * super.z_blocks + super.blocksize * super.i_blocks, SEEK_SET);
+   fread(&node, sizeof(inode), 1, fileSys->imageFile);
+
+   printf("%u %u %u\n", (unsigned int)sizeof(inode), super.blocksize * super.z_blocks, super.blocksize * super.i_blocks);
+
+   printf("num blocks needed: %u zone size: %u\n",  (super.blocksize * 64) / super.i_blocks, super.blocksize << super.log_zone_size);
+   printf("mode %u links %u\n", node.mode, node.links);
+
 }
 
 /*Using the path, figure out how to get the innode
  check if the innode is the directory.*/
-
-
-
-
-
-
-
-
