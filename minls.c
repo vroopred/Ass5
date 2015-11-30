@@ -3,12 +3,17 @@
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "minls.h"
+
 
 filesystem stuff;
 filesystem *fileSys;
 int verbose = 1;
+uint32_t zonesize;
+uint32_t blocksize;
+
 
 int main(int argc, char *argv[]) {
    int i = 1; 
@@ -133,10 +138,17 @@ void findPartition(int partitionNum) {
 void findSuperBlock() {
   superblock super;
   inode node; 
+  fileent file;
+  time_t aTime;
+  time_t mTime;
+  time_t cTime;
+
    /*Check the magic number to make sure it is a minix filesystem
     Set the zonesize = superblock->blocksize <<superblock->log_zone_size*/
    fseek(fileSys->imageFile, BLOCK_SIZE + fileSys->bootblock, SEEK_SET);
    fread(&super, sizeof(superblock), 1, fileSys->imageFile);
+   blocksize = super.blocksize;
+   zonesize = blocksize << super.log_zone_size;
    
    if (super.magic != MIN_MAGIC) {
       fprintf(stderr, "Not a MINIX filesystem. Incorrect magic number\n");
@@ -151,24 +163,131 @@ void findSuperBlock() {
          "\ti_blocks%12d\n"
          "\tz_blocks%12d\n"
          "\tfirstdata%11d\n"
-         "\tlog_zone_size%7d\n"
+         "\tlog_zone_size%7d (zone size: %d)\n"
          "\tmax_file%12u\n"
          "\tmagic         0x%4x\n"
          "\tzones%15u\n"
          "\tblocksize%11u\n"
          "\tsubversion%10u\n"
          , super.ninodes, super.i_blocks, super.z_blocks
-         , super.firstdata, super.log_zone_size, super.max_file
-         , super.magic, super.zones, super.blocksize, super.subversion);
+         , super.firstdata, super.log_zone_size
+         , zonesize , super.max_file
+         , super.magic, super.zones, blocksize, super.subversion);
    }
 
-   fseek(fileSys->imageFile, fileSys->bootblock + BLOCK_SIZE + BLOCK_SIZE + super.blocksize * super.z_blocks + super.blocksize * super.i_blocks, SEEK_SET);
+   fseek(fileSys->imageFile, blocksize + blocksize + blocksize * super.i_blocks + blocksize * super.z_blocks, SEEK_SET);
    fread(&node, sizeof(inode), 1, fileSys->imageFile);
 
-   printf("%u %u %u\n", (unsigned int)sizeof(inode), super.blocksize * super.z_blocks, super.blocksize * super.i_blocks);
+   if(verbose) {
+      aTime = node.atime;
+      mTime = node.mtime;
+      cTime = node.ctime;
+      printf(
+         "File inode:\n"
+         "\tuint16_t mode 0x%4x\n"
+         "\tuint16_t links %hu\n"
+         "\tuint16_t uid %hu\n"
+         "\tuint16_t gid %hu\n"
+         "\tuint32_t size %u\n"
+         "\tuint32_t atime %u %s"
+         "\tuint32_t mtime %u %s"
+         "\tuint32_t ctime %u %s"
+         , node.mode, node.links, node.uid, node.gid
+         , node.size, node.atime, ctime(&aTime), node.mtime, ctime(&mTime)
+         , node.ctime, ctime(&cTime)
+         );
 
-   printf("num blocks needed: %u zone size: %u\n",  (super.blocksize * 64) / super.i_blocks, super.blocksize << super.log_zone_size);
-   printf("mode %u links %u\n", node.mode, node.links);
+      printf(
+         "\tDirect zones:\n"
+         "\t\t  zone[0]  = %8u\n"
+         "\t\t  zone[1]  = %8u\n"
+         "\t\t  zone[2]  = %8u\n"
+         "\t\t  zone[3]  = %8u\n"
+         "\t\t  zone[4]  = %8u\n"
+         "\t\t  zone[5]  = %8u\n"
+         "\t\t  zone[6]  = %8u\n"
+         "\tuint32_t    indirect %8u\n"
+         "\tuint32_t    double   %8u\n"
+         , node.zone[0], node.zone[1], node.zone[2]
+         , node.zone[3], node.zone[4], node.zone[5]
+         , node.zone[6], node.indirect, node.two_indirect
+         );
+   }
+
+   fseek(fileSys->imageFile, node.zone[0] * zonesize, SEEK_SET);
+   fread(&file, sizeof(fileent), 1, fileSys->imageFile);
+   printf("/:\n");
+   printFile(super, node.zone[0], node.size);
+
+}
+
+void printFile(superblock super, uint32_t zone, uint32_t inode_size) {
+   uint32_t num_files;
+   fileent file;
+   inode node; 
+   int i = 0;
+
+   num_files = inode_size / FILEENT_SIZE;
+
+   for(i = 0; i < num_files; i++) {
+      fseek(fileSys->imageFile, zone * zonesize + FILEENT_SIZE * i, SEEK_SET);
+      fread(&file, sizeof(fileent), 1, fileSys->imageFile);
+
+      if(file.ino == 0) 
+         continue;
+
+      fseek(fileSys->imageFile, blocksize + blocksize + blocksize * super.i_blocks + blocksize * super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
+      fread(&node, sizeof(inode), 1, fileSys->imageFile);
+      
+
+      printPermissions(node.mode);
+      printf("%10u ", node.size);
+      printFileName(file.name);
+      printf("\n");
+   }
+
+}
+
+void printFileName(char* fileName) {
+   int i = DIRSIZ; 
+
+   while(i-- && *fileName != '\0') {
+      putchar(*fileName++);
+   }
+}
+
+void printPermissions(uint16_t mode) {
+   int i = PERMISSION_MASK;
+   int j = 3;
+
+   if(IS_DIRECTORY(mode))
+      putchar('d');
+   else 
+      putchar('-');
+
+   while(j--) {
+      if(mode & i)
+         putchar('r');
+      else 
+         putchar('-');
+
+      i >>= 1;
+
+      if(mode & i)
+         putchar('w');
+      else 
+         putchar('-');
+
+      i >>= 1;
+
+      if(mode & i)
+         putchar('x');
+      else 
+         putchar('-');      
+
+      i >>= 1;
+   }
+
 
 }
 

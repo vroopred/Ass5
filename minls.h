@@ -23,6 +23,12 @@
 #define SECTOR_SIZE 512
 #define BLOCK_SIZE 1024
 
+#define FILEENT_SIZE    64
+#define PERMISSION_MASK 256
+
+#define IS_DIRECTORY(m) ((m)&0040000)
+#define DIRECTORY 0040000
+
 #ifndef DIRSIZ
 #define DIRSIZ 60
 #endif
@@ -96,3 +102,6 @@ typedef struct filesystem {
 
 void findPartition(int partitionNum);
 void findSuperBlock();
+void printFile(superblock super, uint32_t zone, uint32_t inode_size);
+void printFileName(char* fileName);
+void printPermissions(uint16_t mode);
