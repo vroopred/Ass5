@@ -59,11 +59,11 @@ int main(int argc, char *argv[]) {
          printf("Subpartition: %d\n", subpartition);
       }
       else {
-         fileSys->subPart = 0;
+         fileSys->subPart = -1;
       }
    }
    else {
-      fileSys->part = 0;
+      fileSys->part = -1;
    }
 
    if(i < argc) {
@@ -88,11 +88,11 @@ int main(int argc, char *argv[]) {
     get inode
     print listing
     close file*/
-   if (fileSys->part >= 0) {
+   if (fileSys->part > -1) {
       findPartition(fileSys->part);
-      // if (fileSys->subPart < 0) {
-      //    findPartition(fileSys->subPart);
-      // }
+       if (fileSys->subPart > -1) {
+          findPartition(fileSys->subPart);
+       }
    }
    findSuperBlock();
    return 0;
