@@ -8,9 +8,8 @@
 #include "minls.h"
 
 
-filesystem stuff;
-filesystem *fileSys;
-int verbose = 1;
+filesystem fileSys;
+int verbose = 0;
 uint32_t zonesize;
 uint32_t blocksize;
 
@@ -22,7 +21,6 @@ int main(int argc, char *argv[]) {
    char* imagefile = 0;
    char* path = 0;
 
-   fileSys = &stuff;
 
    if(argc == 1 || (argv[i][0] == '-' && argv[i][1] == 'h')) {
       printf(
@@ -50,7 +48,7 @@ int main(int argc, char *argv[]) {
       }
       i++;
       partition = atoi(argv[i++]);
-      fileSys->part = partition;
+      fileSys.part = partition;
       printf("Partition: %d\n", partition);
       if(i < argc && argv[i][0] == '-' && argv[i][1] == 's') {
          printf("Getting here\n");
@@ -60,46 +58,48 @@ int main(int argc, char *argv[]) {
          }
          i++; 
          subpartition = atoi(argv[i++]);
-         fileSys->subPart = subpartition;
+         fileSys.subPart = subpartition;
          printf("Subpartition: %d\n", subpartition);
       }
       else {
-         fileSys->subPart = -1;
+         fileSys.subPart = -1;
       }
    }
    else {
-      fileSys->part = -1;
+      fileSys.part = -1;
    }
 
    if(i < argc) {
       imagefile = argv[i++];
       /*open file image and set the FILE pointer to the field*/
-      fileSys->imageFile = fopen(imagefile, "rb");
-      if (fileSys->imageFile == NULL) {
+      fileSys.imageFile = fopen(imagefile, "rb");
+      if (fileSys.imageFile == NULL) {
          fprintf(stderr, "Cannot open the image file %s\n", imagefile);
       }
    }
 
    if(i < argc) {
       path = argv[i++];
-      fileSys->path = path;
+      fileSys.path = path;
       fprintf(stderr, "Path is %s\n", path);
    }
    /*Set the bootblock*/
-   fileSys->bootblock = 0;
+   fileSys.bootblock = 0;
    /*Partition => call findPartition() for part && subpart (disk starts at first
     sector of part for the subpart but everything else is the same)
     Superblock
     get inode
     print listing
     close file*/
-   if (fileSys->part > -1) {
-      findPartition(fileSys->part);
-       if (fileSys->subPart > -1) {
-          findPartition(fileSys->subPart);
+   if (fileSys.part > -1) {
+      findPartition(fileSys.part);
+       if (fileSys.subPart > -1) {
+          findPartition(fileSys.subPart);
        }
    }
    findSuperBlock();
+   findPath();
+
    return 0;
 }
 
@@ -113,14 +113,14 @@ void findPartition(int partitionNum) {
    uint8_t block[BLOCK_SIZE];
    partition table[4];
    partition *partitionTable = NULL;
-   fseek(fileSys->imageFile, fileSys->bootblock, SEEK_SET);
-   fread((void*)block, BLOCK_SIZE, 1, fileSys->imageFile);
+   fseek(fileSys.imageFile, fileSys.bootblock, SEEK_SET);
+   fread((void*)block, BLOCK_SIZE, 1, fileSys.imageFile);
    if (block[510] != PMAGIC510 || block[511] != PMAGIC511) {
       printf("Invalid partition table.\n");
       return;
    }
-   fseek(fileSys->imageFile, (fileSys->bootblock) + PTABLE_OFFSET, SEEK_SET);
-   fread((void*)table, sizeof(partition), 4, fileSys->imageFile);
+   fseek(fileSys.imageFile, (fileSys.bootblock) + PTABLE_OFFSET, SEEK_SET);
+   fread((void*)table, sizeof(partition), 4, fileSys.imageFile);
    if (table->type != MINIXPART) {
       fprintf(stderr, "Not a MINIX partition table\n");
       return;
@@ -130,24 +130,21 @@ void findPartition(int partitionNum) {
    partitionTable = partitionTable + partitionNum;
    /*Set the bootblock to the first sector => lfirst sector in the case
     that there is subpart or for when you want to find the superblock*/
-   fileSys->bootblock = partitionTable->lFirst * SECTOR_SIZE;
+   fileSys.bootblock = partitionTable->lFirst * SECTOR_SIZE;
    
 }
 
 void findSuperBlock() {
   superblock super;
-  inode node; 
-  fileent file;
-  time_t aTime;
-  time_t mTime;
-  time_t cTime;
 
    /*Check the magic number to make sure it is a minix filesystem
     Set the zonesize = superblock->blocksize <<superblock->log_zone_size*/
-   fseek(fileSys->imageFile, BLOCK_SIZE + fileSys->bootblock, SEEK_SET);
-   fread(&super, sizeof(superblock), 1, fileSys->imageFile);
+   fseek(fileSys.imageFile, BLOCK_SIZE + fileSys.bootblock, SEEK_SET);
+   fread(&super, sizeof(superblock), 1, fileSys.imageFile);
    blocksize = super.blocksize;
    zonesize = blocksize << super.log_zone_size;
+
+   fileSys.super = super;
    
    if (super.magic != MIN_MAGIC) {
       fprintf(stderr, "Not a MINIX filesystem. Incorrect magic number\n");
@@ -174,8 +171,20 @@ void findSuperBlock() {
          , super.magic, super.zones, blocksize, super.subversion);
    }
 
-   fseek(fileSys->imageFile, blocksize + blocksize + blocksize * super.i_blocks + blocksize * super.z_blocks, SEEK_SET);
-   fread(&node, sizeof(inode), 1, fileSys->imageFile);
+
+}
+
+void findPath() {
+   inode node;
+   fileent file;
+   time_t aTime;
+   time_t mTime;
+   time_t cTime;
+
+   fseek(fileSys.imageFile, fileSys.bootblock + blocksize + blocksize + 
+      blocksize * fileSys.super.i_blocks + blocksize * fileSys.super.z_blocks
+      , SEEK_SET);
+   fread(&node, sizeof(inode), 1, fileSys.imageFile);
 
    if(verbose) {
       aTime = node.atime;
@@ -183,16 +192,19 @@ void findSuperBlock() {
       cTime = node.ctime;
       printf(
          "File inode:\n"
-         "\tuint16_t mode 0x%4x\n"
-         "\tuint16_t links %hu\n"
-         "\tuint16_t uid %hu\n"
-         "\tuint16_t gid %hu\n"
-         "\tuint32_t size %u\n"
-         "\tuint32_t atime %u %s"
-         "\tuint32_t mtime %u %s"
-         "\tuint32_t ctime %u %s"
-         , node.mode, node.links, node.uid, node.gid
-         , node.size, node.atime, ctime(&aTime), node.mtime, ctime(&mTime)
+         "\tuint16_t mode 0x%9x  (", node.mode);
+      printPermissions(node.mode);
+
+      printf(
+         ")\n\tuint16_t links %10hu\n"
+         "\tuint16_t uid %12hu\n"
+         "\tuint16_t gid %12hu\n"
+         "\tuint32_t size %11u\n"
+         "\tuint32_t atime %8u %s"
+         "\tuint32_t mtime %8u %s"
+         "\tuint32_t ctime %8u %s"
+         , node.links, node.uid, node.gid, node.size
+         , node.atime, ctime(&aTime), node.mtime, ctime(&mTime)
          , node.ctime, ctime(&cTime)
          );
 
@@ -213,11 +225,10 @@ void findSuperBlock() {
          );
    }
 
-   fseek(fileSys->imageFile, node.zone[0] * zonesize, SEEK_SET);
-   fread(&file, sizeof(fileent), 1, fileSys->imageFile);
+   fseek(fileSys.imageFile, node.zone[0] * zonesize, SEEK_SET);
+   fread(&file, sizeof(fileent), 1, fileSys.imageFile);
    printf("/:\n");
-   printFile(super, node.zone[0], node.size);
-
+   printFile(fileSys.super, node.zone[0], node.size);
 }
 
 void printFile(superblock super, uint32_t zone, uint32_t inode_size) {
@@ -229,14 +240,14 @@ void printFile(superblock super, uint32_t zone, uint32_t inode_size) {
    num_files = inode_size / FILEENT_SIZE;
 
    for(i = 0; i < num_files; i++) {
-      fseek(fileSys->imageFile, zone * zonesize + FILEENT_SIZE * i, SEEK_SET);
-      fread(&file, sizeof(fileent), 1, fileSys->imageFile);
+      fseek(fileSys.imageFile, zone * zonesize + FILEENT_SIZE * i, SEEK_SET);
+      fread(&file, sizeof(fileent), 1, fileSys.imageFile);
 
       if(file.ino == 0) 
          continue;
 
-      fseek(fileSys->imageFile, blocksize + blocksize + blocksize * super.i_blocks + blocksize * super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
-      fread(&node, sizeof(inode), 1, fileSys->imageFile);
+      fseek(fileSys.imageFile, blocksize + blocksize + blocksize * super.i_blocks + blocksize * super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
+      fread(&node, sizeof(inode), 1, fileSys.imageFile);
       
 
       printPermissions(node.mode);

@@ -93,7 +93,7 @@ typedef struct filesystem {
    FILE *imageFile;
    char *path;
    uint32_t bootblock;
-   superblock *superBlock;
+   superblock super;
    int part;
    int subPart;
    int zoneSize;
@@ -102,6 +102,7 @@ typedef struct filesystem {
 
 void findPartition(int partitionNum);
 void findSuperBlock();
+void findPath();
 void printFile(superblock super, uint32_t zone, uint32_t inode_size);
 void printFileName(char* fileName);
 void printPermissions(uint16_t mode);
