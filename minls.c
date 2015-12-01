@@ -117,13 +117,13 @@ void findPartition(int partitionNum) {
    fread((void*)block, BLOCK_SIZE, 1, fileSys.imageFile);
    if (block[510] != PMAGIC510 || block[511] != PMAGIC511) {
       printf("Invalid partition table.\n");
-      return;
+      exit(0);
    }
    fseek(fileSys.imageFile, (fileSys.bootblock) + PTABLE_OFFSET, SEEK_SET);
    fread((void*)table, sizeof(partition), 4, fileSys.imageFile);
    if (table->type != MINIXPART) {
       fprintf(stderr, "Not a MINIX partition table\n");
-      return;
+      exit(0);
    }
    /*There has to be a better way to do this, but it will work for now*/
    partitionTable = (partition*)table;
@@ -148,7 +148,7 @@ void findSuperBlock() {
    
    if (super.magic != MIN_MAGIC) {
       fprintf(stderr, "Not a MINIX filesystem. Incorrect magic number\n");
-      return;
+      exit(0);
    }
    if (verbose) {
       /*Print the superblock*/
