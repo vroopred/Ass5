@@ -106,32 +106,31 @@ int main(int argc, char *argv[]) {
 void findPartition(int partitionNum) {
    /*
     1. check if byte 510 == PMAGIC510 && byte 511 == PMAGIC511
-        to see if the partition table is valid before proceeding
+    to see if the partition table is valid before proceeding
     2. Go to address PTABLE_OFFSET in the disk to get to partition table
     3. check the type says it is a MINIX partition
     4. We want to go to the first sector => lfirst * SECTOR_SIZE*/
-   
+   uint8_t block[BLOCK_SIZE];
    partition table[4];
-   /*fseek to byte 510
-    fread(set value for byte 510, 1, 1, fileSys->imageFile);
-    fseek to byte 511
-    fread(set value for byte 511, 1, 1, fileSys->imageFile);
-   if(byte 510 != PMAGIC510 && byte 511 != PMAGIC511) {
-      fprintf(stderr, "Not a valid partition table\n");
+   partition *partitionTable = NULL;
+   fseek(fileSys->imageFile, fileSys->bootblock, SEEK_SET);
+   fread((void*)block, BLOCK_SIZE, 1, fileSys->imageFile);
+   if (block[510] != PMAGIC510 || block[511] != PMAGIC511) {
+      printf("Invalid partition table.\n");
       return;
-   }*/
-   fseek(fileSys->imageFile, PTABLE_OFFSET, SEEK_SET);
-   fread(table, sizeof(partition), 4, fileSys->imageFile);
-   if (table[partitionNum].type != MINIXPART) {
-      //This is currently broken, maybe we don't know where to look?
+   }
+   fseek(fileSys->imageFile, (fileSys->bootblock) + PTABLE_OFFSET, SEEK_SET);
+   fread((void*)table, sizeof(partition), 4, fileSys->imageFile);
+   if (table->type != MINIXPART) {
       fprintf(stderr, "Not a MINIX partition table\n");
       return;
    }
-   
+   /*There has to be a better way to do this, but it will work for now*/
+   partitionTable = (partition*)table;
+   partitionTable = partitionTable + partitionNum;
    /*Set the bootblock to the first sector => lfirst sector in the case
     that there is subpart or for when you want to find the superblock*/
-   printf("Setting bootblock\n");
-   fileSys->bootblock = table[partitionNum].lFirst * SECTOR_SIZE;
+   fileSys->bootblock = partitionTable->lFirst * SECTOR_SIZE;
    
 }
 
