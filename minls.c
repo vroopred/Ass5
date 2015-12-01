@@ -240,13 +240,13 @@ void printFile(superblock super, uint32_t zone, uint32_t inode_size) {
    num_files = inode_size / FILEENT_SIZE;
 
    for(i = 0; i < num_files; i++) {
-      fseek(fileSys.imageFile, zone * zonesize + FILEENT_SIZE * i, SEEK_SET);
+      fseek(fileSys.imageFile, fileSys.bootblock + zone * zonesize + FILEENT_SIZE * i, SEEK_SET);
       fread(&file, sizeof(fileent), 1, fileSys.imageFile);
 
       if(file.ino == 0) 
          continue;
 
-      fseek(fileSys.imageFile, blocksize + blocksize + blocksize * super.i_blocks + blocksize * super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
+      fseek(fileSys.imageFile, fileSys.bootblock + blocksize + blocksize + blocksize * super.i_blocks + blocksize * super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
       fread(&node, sizeof(inode), 1, fileSys.imageFile);
       
 
