@@ -10,17 +10,12 @@
 
 filesystem fileSys;
 int verbose = 0;
-uint32_t zonesize;
-uint32_t blocksize;
-
 
 int main(int argc, char *argv[]) {
    int i = 1; 
    int partition = 0;
    int subpartition = 0;
    char* imagefile = 0;
-   char* path = 0;
-
 
    if(argc == 1 || (argv[i][0] == '-' && argv[i][1] == 'h')) {
       printf(
@@ -79,9 +74,7 @@ int main(int argc, char *argv[]) {
    }
 
    if(i < argc) {
-      path = argv[i++];
-      fileSys.path = path;
-      fprintf(stderr, "Path is %s\n", path);
+      fileSys.path = argv[i++];
    }
    /*Set the bootblock*/
    fileSys.bootblock = 0;
@@ -138,11 +131,11 @@ void findSuperBlock() {
   superblock super;
 
    /*Check the magic number to make sure it is a minix filesystem
-    Set the zonesize = superblock->blocksize <<superblock->log_zone_size*/
+    Set the fileSys.zonesize = superblock->fileSys.blocksize <<superblock->log_zone_size*/
    fseek(fileSys.imageFile, BLOCK_SIZE + fileSys.bootblock, SEEK_SET);
    fread(&super, sizeof(superblock), 1, fileSys.imageFile);
-   blocksize = super.blocksize;
-   zonesize = blocksize << super.log_zone_size;
+   fileSys.blocksize = super.blocksize;
+   fileSys.zonesize = fileSys.blocksize << super.log_zone_size;
 
    fileSys.super = super;
    
@@ -163,12 +156,12 @@ void findSuperBlock() {
          "\tmax_file%12u\n"
          "\tmagic         0x%4x\n"
          "\tzones%15u\n"
-         "\tblocksize%11u\n"
+         "\tfileSys.blocksize%11u\n"
          "\tsubversion%10u\n"
          , super.ninodes, super.i_blocks, super.z_blocks
          , super.firstdata, super.log_zone_size
-         , zonesize , super.max_file
-         , super.magic, super.zones, blocksize, super.subversion);
+         , fileSys.zonesize , super.max_file
+         , super.magic, super.zones, fileSys.blocksize, super.subversion);
    }
 
 
@@ -176,13 +169,14 @@ void findSuperBlock() {
 
 void findPath() {
    inode node;
-   fileent file;
+   printNode newNode;
    time_t aTime;
    time_t mTime;
    time_t cTime;
+   char* keepPath = fileSys.path;
 
-   fseek(fileSys.imageFile, fileSys.bootblock + blocksize + blocksize + 
-      blocksize * fileSys.super.i_blocks + blocksize * fileSys.super.z_blocks
+   fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize + fileSys.blocksize + 
+      fileSys.blocksize * fileSys.super.i_blocks + fileSys.blocksize * fileSys.super.z_blocks
       , SEEK_SET);
    fread(&node, sizeof(inode), 1, fileSys.imageFile);
 
@@ -225,37 +219,126 @@ void findPath() {
          );
    }
 
-   fseek(fileSys.imageFile, node.zone[0] * zonesize, SEEK_SET);
-   fread(&file, sizeof(fileent), 1, fileSys.imageFile);
-   printf("/:\n");
-   printFile(fileSys.super, node.zone[0], node.size);
+   newNode = findPathToInode(node);
+
+   //If keepPath has a value, aka not null, print it
+   if(keepPath)
+      printf("%s:\n", keepPath);
+   else//Else just print the home
+      printf("/:\n");
+
+   //Check if it's a file. This is special and gets printed differently
+   if(!IS_DIRECTORY(newNode.mode)) {
+      printPermissions(newNode.mode);
+      printf("%10u ", newNode.size);
+      printf("%s\n", keepPath);
+      return;
+   }
+
+   printFile(newNode);
 }
 
-void printFile(superblock super, uint32_t zone, uint32_t inode_size) {
+//Recursively finds path to correct file and returns a printing Node
+printNode findPathToInode(inode node) {
    uint32_t num_files;
    fileent file;
-   inode node; 
-   int i = 0;
+   printNode newNode; 
+   uint32_t zoneNum = node.zone[0];
+   // int i = 0;
+   int j = 0;
 
-   num_files = inode_size / FILEENT_SIZE;
+   num_files = node.size / FILEENT_SIZE;
 
-   for(i = 0; i < num_files; i++) {
-      fseek(fileSys.imageFile, fileSys.bootblock + zone * zonesize + FILEENT_SIZE * i, SEEK_SET);
+   fseek(fileSys.imageFile, zoneNum * fileSys.zonesize, SEEK_SET);
+   fread(&file, sizeof(fileent), 1, fileSys.imageFile);
+
+   for(j = 0; j < num_files; j++) {
+      fseek(fileSys.imageFile, fileSys.bootblock + zoneNum * fileSys.zonesize + FILEENT_SIZE * j, SEEK_SET);
       fread(&file, sizeof(fileent), 1, fileSys.imageFile);
 
       if(file.ino == 0) 
          continue;
 
-      fseek(fileSys.imageFile, fileSys.bootblock + blocksize + blocksize + blocksize * super.i_blocks + blocksize * super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
-      fread(&node, sizeof(inode), 1, fileSys.imageFile);
+      if(fileCmp(file.name)) {
+
+         fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize + fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks + fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
+         fread(&node, sizeof(inode), 1, fileSys.imageFile);
+         if(*fileSys.path != '\0') {
+            newNode = findPathToInode(node);
+
+            if(*newNode.name == '\0') {
+               memcpy(newNode.name, file.name, DIRSIZ);
+            }
+
+            return newNode;
+         }
+      }  
+   }
+
+   newNode.mode = node.mode;
+   newNode.size = node.size;
+   memcpy(newNode.zone, node.zone,sizeof(uint32_t) * DIRECT_ZONES);//This could be an issue...
+   newNode.indirect = node.indirect;
+   newNode.two_indirect = node.two_indirect;
+   *newNode.name = '\0';
+
+   return newNode;
+}
+
+void printFile(printNode node) {
+   uint32_t num_files;
+   fileent file;
+   inode newNode; 
+   int i = 0;
+
+   num_files = node.size / FILEENT_SIZE;
+
+   for(i = 0; i < num_files; i++) {
+      fseek(fileSys.imageFile, fileSys.bootblock + node.zone[0] * fileSys.zonesize + FILEENT_SIZE * i, SEEK_SET);
+      fread(&file, sizeof(fileent), 1, fileSys.imageFile);
+
+      if(file.ino == 0) 
+         continue;
+
+      fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize + fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks + fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
+      fread(&newNode, sizeof(inode), 1, fileSys.imageFile);
       
 
-      printPermissions(node.mode);
-      printf("%10u ", node.size);
+      printPermissions(newNode.mode);
+      printf("%10u ", newNode.size);
       printFileName(file.name);
       printf("\n");
    }
 
+}
+
+int fileCmp(char* cmp) {
+   int i = DIRSIZ; 
+   char* keepPath = fileSys.path;
+
+   //Chew up the \/
+   if(*fileSys.path == '/')
+      fileSys.path++;
+
+   //If reach i = 0, they were max size and the same. 
+   //Else if they both equal null, they are the same
+   //ELse if one path is '/' and the other is null
+   while(i-- && (*fileSys.path != '\0' && *cmp != '\0')) {
+      if(*fileSys.path++ != *cmp++) {
+         fileSys.path = keepPath;
+         return 0;
+      }
+
+      if(*fileSys.path == '/' && *cmp == '\0') {
+         return 1;
+      }
+      else if(*fileSys.path == '/'){
+         //This means that the file was a subfile of the path
+         fileSys.path = keepPath;
+         return 0;
+      }
+   } 
+   return 1;
 }
 
 void printFileName(char* fileName) {
@@ -298,8 +381,4 @@ void printPermissions(uint16_t mode) {
       i >>= 1;
    }
 
-
 }
-
-/*Using the path, figure out how to get the innode
- check if the innode is the directory.*/

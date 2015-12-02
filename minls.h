@@ -89,6 +89,15 @@ uint32_t two_indirect;
 uint32_t unused;
 } inode;
 
+typedef struct printNode {
+uint16_t mode; /* mode */
+uint32_t size;
+uint32_t zone[DIRECT_ZONES];
+uint32_t indirect;
+uint32_t two_indirect;
+char name[DIRSIZ];
+} printNode;
+
 typedef struct filesystem {
    FILE *imageFile;
    char *path;
@@ -96,13 +105,16 @@ typedef struct filesystem {
    superblock super;
    int part;
    int subPart;
-   int zoneSize;
+   uint32_t zonesize;
+   uint32_t blocksize;
 } filesystem;
 
 
 void findPartition(int partitionNum);
 void findSuperBlock();
 void findPath();
-void printFile(superblock super, uint32_t zone, uint32_t inode_size);
+void printFile(printNode node);
 void printFileName(char* fileName);
 void printPermissions(uint16_t mode);
+int fileCmp(char* cmp);
+printNode findPathToInode(inode node);
