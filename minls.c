@@ -256,18 +256,19 @@ void findPath() {
 
    newNode = findPathToInode(node);
 
-   //If keepPath has a value, aka not null, print it
-   if(keepPath)
-      printf("%s:\n", keepPath);
-   else//Else just print the home
-      printf("/:\n");
-
    //Check if it's a file. This is special and gets printed differently
    if(!IS_DIRECTORY(newNode.mode)) {
       printPermissions(newNode.mode);
       printf("%10u ", newNode.size);
       printf("%s\n", keepPath);
       return;
+   }
+   else {
+      //If keepPath has a value, aka not null, print it
+      if(keepPath)
+         printf("%s:\n", keepPath);
+      else//Else just print the home
+         printf("/:\n");
    }
 
    printFile(newNode);
