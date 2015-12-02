@@ -17,6 +17,8 @@ int main(int argc, char *argv[]) {
    int subpartition = 0;
    char* imagefile = 0;
 
+   fileSys.path = 0;
+
    if(argc == 1 || (argv[i][0] == '-' && argv[i][1] == 'h')) {
       printf(
          "usage: minls  [ -v ] [ -p num [-s num ] ] imagefile [ path ]\n"
@@ -252,29 +254,30 @@ printNode findPathToInode(inode node) {
    fseek(fileSys.imageFile, zoneNum * fileSys.zonesize, SEEK_SET);
    fread(&file, sizeof(fileent), 1, fileSys.imageFile);
 
-   for(j = 0; j < num_files; j++) {
-      fseek(fileSys.imageFile, fileSys.bootblock + zoneNum * fileSys.zonesize + FILEENT_SIZE * j, SEEK_SET);
-      fread(&file, sizeof(fileent), 1, fileSys.imageFile);
+   if(fileSys.path != 0) {
+      for(j = 0; j < num_files; j++) {
+         fseek(fileSys.imageFile, fileSys.bootblock + zoneNum * fileSys.zonesize + FILEENT_SIZE * j, SEEK_SET);
+         fread(&file, sizeof(fileent), 1, fileSys.imageFile);
 
-      if(file.ino == 0) 
-         continue;
+         if(file.ino == 0) 
+            continue;
 
-      if(fileCmp(file.name)) {
+         if(fileCmp(file.name)) {
 
-         fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize + fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks + fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
-         fread(&node, sizeof(inode), 1, fileSys.imageFile);
-         if(*fileSys.path != '\0') {
-            newNode = findPathToInode(node);
+            fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize + fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks + fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
+            fread(&node, sizeof(inode), 1, fileSys.imageFile);
+            if(*fileSys.path != '\0') {
+               newNode = findPathToInode(node);
 
-            if(*newNode.name == '\0') {
-               memcpy(newNode.name, file.name, DIRSIZ);
+               if(*newNode.name == '\0') {
+                  memcpy(newNode.name, file.name, DIRSIZ);
+               }
+
+               return newNode;
             }
-
-            return newNode;
-         }
-      }  
+         }  
+      }
    }
-
    newNode.mode = node.mode;
    newNode.size = node.size;
    memcpy(newNode.zone, node.zone,sizeof(uint32_t) * DIRECT_ZONES);//This could be an issue...
