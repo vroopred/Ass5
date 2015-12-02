@@ -4,7 +4,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <time.h>
-
+#include <getopt.h>
 #include "minls.h"
 
 
@@ -12,72 +12,79 @@ filesystem fileSys;
 int verbose = 0;
 
 int main(int argc, char *argv[]) {
-   int i = 1; 
-   int partition = 0;
-   int subpartition = 0;
+   extern char *optarg;
+   extern int optind;
    char* imagefile = 0;
-
+   int c = getopt(argc, argv, "vp:s:h");
+   int sflag = 0, pflag = 0;
+   int isPart = 0;
+   fileSys.part = -1;
+   fileSys.subPart = -1;
    fileSys.path = 0;
-
-   if(argc == 1 || (argv[i][0] == '-' && argv[i][1] == 'h')) {
-      printf(
-         "usage: minls  [ -v ] [ -p num [-s num ] ] imagefile [ path ]\n"
-         "Options:\n"     
-         "-p part    --- select partition for filesystem (default: none)\n"
-         "-s sub     --- select subpartition for filesystem (default: none)\n"
-         "-h help    --- print usage information and exit\n"
-         "-v verbose --- increase verbosity level\n"
-         );
-      exit(EXIT_FAILURE);
-   }
-
-
-   if(argv[i][0] == '-' && argv[i][1] == 'v') {
-      printf("Verbose\n");
-      verbose = 1;
-      i++;
-   }
-
-   if(i < argc && argv[i][0] == '-' && argv[i][1] == 'p') {
-      if(i + 2 > argc) {
-         fprintf(stderr, "Not enough arguments for %s flag\n", argv[i]);
+   while (c != -1) {
+      switch (c) {
+         case 'v':
+            verbose = 1;
+            break;
+         case 'p':
+            isPart = 1;
+            pflag = 1;
+            fileSys.part = atoi(optarg);
+            break;
+         case 's':
+            sflag = 1;
+            fileSys.subPart = atoi(optarg);
+            break;
+         case 'h':
+            fprintf(stderr,
+             "usage: minls  [ -v ] [ -p num [-s num ] ] imagefile [ path ]\n"
+             "Options:\n"
+             "-p part    --- select partition for filesystem (default: none)\n"
+          "-s sub     --- select subpartition for filesystem (default: none)\n"
+             "-h help    --- print usage information and exit\n"
+             "-v verbose --- increase verbosity level\n"
+                   );
+            exit(EXIT_FAILURE);
+         default:
+            fprintf(stderr,
+             "usage: minls  [ -v ] [ -p num [-s num ] ] imagefile [ path ]\n"
+             "Options:\n"
+             "-p part    --- select partition for filesystem (default: none)\n"
+          "-s sub     --- select subpartition for filesystem (default: none)\n"
+             "-h help    --- print usage information and exit\n"
+             "-v verbose --- increase verbosity level\n"
+                    );
+            exit(EXIT_FAILURE);
+            
+      }
+      if (pflag == 1 && ((optind+1) > argc)) {
+         fprintf(stderr, "Not enough arguments for -p flag\n");
          exit(EXIT_FAILURE);
       }
-      i++;
-      partition = atoi(argv[i++]);
-      fileSys.part = partition;
-      printf("Partition: %d\n", partition);
-      if(i < argc && argv[i][0] == '-' && argv[i][1] == 's') {
-         printf("Getting here\n");
-         if(i + 2 > argc) {
-            fprintf(stderr, "Not enough arguments for %s flag\n", argv[i]);
-            exit(EXIT_FAILURE);
-         }
-         i++; 
-         subpartition = atoi(argv[i++]);
-         fileSys.subPart = subpartition;
-         printf("Subpartition: %d\n", subpartition);
+      if (sflag == 1 && isPart == 0) {
+         fprintf(stderr, "Cannot have subpartition without partition.\n");
+         exit(EXIT_FAILURE);
       }
-      else {
-         fileSys.subPart = -1;
+      else if (sflag == 1 && ((optind+1) > argc)) {
+         fprintf(stderr, "Not enough arguments for -s flag\n");
+         exit(EXIT_FAILURE);
       }
+      pflag = sflag = 0;
+      c = getopt(argc, argv, "vp:s:h");
+   }
+   if (optind >= argc) {
+      fprintf(stderr, "Need an imagefile.\n");
+      exit(EXIT_FAILURE);
    }
    else {
-      fileSys.part = -1;
-   }
-
-   if(i < argc) {
-      imagefile = argv[i++];
-      /*open file image and set the FILE pointer to the field*/
-      fileSys.imageFile = fopen(imagefile, "rb");
+      fileSys.imageFile = fopen(argv[optind++], "rb");
       if (fileSys.imageFile == NULL) {
          fprintf(stderr, "Cannot open the image file %s\n", imagefile);
          exit(EXIT_FAILURE);
       }
    }
-
-   if(i < argc) {
-      fileSys.path = argv[i++];
+   if (optind < argc) {
+      fileSys.path = argv[optind];
    }
    /*Set the bootblock*/
    fileSys.bootblock = 0;
@@ -106,9 +113,11 @@ void findPartition(int partitionNum) {
     2. Go to address PTABLE_OFFSET in the disk to get to partition table
     3. check the type says it is a MINIX partition
     4. We want to go to the first sector => lfirst * SECTOR_SIZE*/
+   int i;
    uint8_t block[BLOCK_SIZE];
    partition table[4];
    partition *partitionTable = NULL;
+   partition *partitionTablePrint = NULL;
    fseek(fileSys.imageFile, fileSys.bootblock, SEEK_SET);
    fread((void*)block, BLOCK_SIZE, 1, fileSys.imageFile);
    if (block[510] != PMAGIC510 || block[511] != PMAGIC511) {
@@ -123,6 +132,28 @@ void findPartition(int partitionNum) {
    }
    /*There has to be a better way to do this, but it will work for now*/
    partitionTable = (partition*)table;
+   partitionTablePrint = partitionTable;
+   if(verbose) {
+      /*Print Partition Table*/
+      printf("Partition table:\n");
+      printf("----Start----      ------End-----\n");
+      printf("Boot head  sec  cyl Type head  sec  cyl      First       Size\n");
+      /*Loop through each of the possible 4 partitions*/
+      for(i = 0; i < 4; i++) {
+         printf("0x%2x", partitionTablePrint->bootind);
+         printf("%5d", partitionTablePrint->start_head);
+         printf("%5d", partitionTablePrint->start_sec);
+         printf("%5d", partitionTablePrint->start_cyl);
+         printf(" ");
+         printf("0x%2x", partitionTablePrint->type);
+         printf("%5d", partitionTablePrint->end_head);
+         printf("%5d", partitionTablePrint->end_sec);
+         printf("%5d", partitionTablePrint->end_cyl);
+         printf("%11d", partitionTablePrint->lFirst);
+         printf("%11d\n", partitionTablePrint->size);
+         partitionTablePrint++;
+      }
+   }
    partitionTable = partitionTable + partitionNum;
    /*Set the bootblock to the first sector => lfirst sector in the case
     that there is subpart or for when you want to find the superblock*/
