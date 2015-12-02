@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
          "-h help    --- print usage information and exit\n"
          "-v verbose --- increase verbosity level\n"
          );
-      return 0;
+      exit(EXIT_FAILURE);
    }
 
 
@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
    if(i < argc && argv[i][0] == '-' && argv[i][1] == 'p') {
       if(i + 2 > argc) {
          fprintf(stderr, "Not enough arguments for %s flag\n", argv[i]);
-         return -1;
+         exit(EXIT_FAILURE);
       }
       i++;
       partition = atoi(argv[i++]);
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
          printf("Getting here\n");
          if(i + 2 > argc) {
             fprintf(stderr, "Not enough arguments for %s flag\n", argv[i]);
-            return -1;
+            exit(EXIT_FAILURE);
          }
          i++; 
          subpartition = atoi(argv[i++]);
@@ -72,6 +72,7 @@ int main(int argc, char *argv[]) {
       fileSys.imageFile = fopen(imagefile, "rb");
       if (fileSys.imageFile == NULL) {
          fprintf(stderr, "Cannot open the image file %s\n", imagefile);
+         exit(EXIT_FAILURE);
       }
    }
 
@@ -112,13 +113,13 @@ void findPartition(int partitionNum) {
    fread((void*)block, BLOCK_SIZE, 1, fileSys.imageFile);
    if (block[510] != PMAGIC510 || block[511] != PMAGIC511) {
       printf("Invalid partition table.\n");
-      exit(0);
+      exit(EXIT_FAILURE);
    }
    fseek(fileSys.imageFile, (fileSys.bootblock) + PTABLE_OFFSET, SEEK_SET);
    fread((void*)table, sizeof(partition), 4, fileSys.imageFile);
    if (table->type != MINIXPART) {
       fprintf(stderr, "Not a MINIX partition table\n");
-      exit(0);
+      exit(EXIT_FAILURE);
    }
    /*There has to be a better way to do this, but it will work for now*/
    partitionTable = (partition*)table;
@@ -133,7 +134,8 @@ void findSuperBlock() {
   superblock super;
 
    /*Check the magic number to make sure it is a minix filesystem
-    Set the fileSys.zonesize = superblock->fileSys.blocksize <<superblock->log_zone_size*/
+    Set the fileSys.zonesize = 
+    superblock->fileSys.blocksize <<superblock->log_zone_size*/
    fseek(fileSys.imageFile, BLOCK_SIZE + fileSys.bootblock, SEEK_SET);
    fread(&super, sizeof(superblock), 1, fileSys.imageFile);
    fileSys.blocksize = super.blocksize;
@@ -143,7 +145,7 @@ void findSuperBlock() {
    
    if (super.magic != MIN_MAGIC) {
       fprintf(stderr, "Not a MINIX filesystem. Incorrect magic number\n");
-      exit(0);
+      exit(EXIT_FAILURE);
    }
    if (verbose) {
       /*Print the superblock*/
@@ -177,9 +179,9 @@ void findPath() {
    time_t cTime;
    char* keepPath = fileSys.path;
 
-   fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize + fileSys.blocksize + 
-      fileSys.blocksize * fileSys.super.i_blocks + fileSys.blocksize * fileSys.super.z_blocks
-      , SEEK_SET);
+   fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize +
+         fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks +
+         fileSys.blocksize * fileSys.super.z_blocks, SEEK_SET);
    fread(&node, sizeof(inode), 1, fileSys.imageFile);
 
    if(verbose) {
@@ -256,7 +258,8 @@ printNode findPathToInode(inode node) {
 
    if(fileSys.path != 0) {
       for(j = 0; j < num_files; j++) {
-         fseek(fileSys.imageFile, fileSys.bootblock + zoneNum * fileSys.zonesize + FILEENT_SIZE * j, SEEK_SET);
+         fseek(fileSys.imageFile, fileSys.bootblock + zoneNum *
+               fileSys.zonesize + FILEENT_SIZE * j, SEEK_SET);
          fread(&file, sizeof(fileent), 1, fileSys.imageFile);
 
          if(file.ino == 0) 
@@ -264,7 +267,11 @@ printNode findPathToInode(inode node) {
 
          if(fileCmp(file.name)) {
 
-            fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize + fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks + fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
+            fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize +
+                  fileSys.blocksize + fileSys.blocksize *
+                  fileSys.super.i_blocks + fileSys.blocksize *
+                  fileSys.super.z_blocks + sizeof(inode) * (file.ino - 1),
+                  SEEK_SET);
             fread(&node, sizeof(inode), 1, fileSys.imageFile);
             if(*fileSys.path != '\0') {
                newNode = findPathToInode(node);
@@ -280,7 +287,8 @@ printNode findPathToInode(inode node) {
    }
    newNode.mode = node.mode;
    newNode.size = node.size;
-   memcpy(newNode.zone, node.zone,sizeof(uint32_t) * DIRECT_ZONES);//This could be an issue...
+   /*This could be an issue...*/
+   memcpy(newNode.zone, node.zone,sizeof(uint32_t) * DIRECT_ZONES);
    newNode.indirect = node.indirect;
    newNode.two_indirect = node.two_indirect;
    *newNode.name = '\0';
@@ -297,13 +305,17 @@ void printFile(printNode node) {
    num_files = node.size / FILEENT_SIZE;
 
    for(i = 0; i < num_files; i++) {
-      fseek(fileSys.imageFile, fileSys.bootblock + node.zone[0] * fileSys.zonesize + FILEENT_SIZE * i, SEEK_SET);
+      fseek(fileSys.imageFile, fileSys.bootblock + node.zone[0] *
+            fileSys.zonesize + FILEENT_SIZE * i, SEEK_SET);
       fread(&file, sizeof(fileent), 1, fileSys.imageFile);
 
       if(file.ino == 0) 
          continue;
 
-      fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize + fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks + fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
+      fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize +
+            fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks +
+            fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) *
+            (file.ino - 1), SEEK_SET);
       fread(&newNode, sizeof(inode), 1, fileSys.imageFile);
       
 
