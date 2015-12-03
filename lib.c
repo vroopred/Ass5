@@ -257,8 +257,6 @@ printNode searchInode(inode node, uint32_t zoneNum) {
    printNode newNode;
    // uint32_t zoneNum = node.zone[0];
    int j = 0;
-   int filesRead = 0;
-   int filesPerZone = fileSys.zonesize/FILEENT_SIZE;
    num_files = node.size / FILEENT_SIZE;
    
    fseek(fileSys.imageFile, zoneNum * fileSys.zonesize, SEEK_SET);

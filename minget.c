@@ -97,7 +97,6 @@ int main(int argc, char *argv[]) {
    }
    else {
       fileSys.path = argv[optind++];
-      printf("%s\n",fileSys.path);
    }
    if (optind < argc) {
       if ((dstpath = fopen(argv[optind++], "w+")) == NULL) {
@@ -138,7 +137,7 @@ void copy() {
    inode node;
    printNode newNode;
    int i;
-   void * buffer;
+   char *buffer;
    int32_t nodeSize;
    int32_t readSize;
    
@@ -156,14 +155,14 @@ void copy() {
       exit(EXIT_FAILURE);
    }
 
-   //Check if it's a file. This is special and gets printed differently
-   if(!IS_DIRECTORY(newNode.mode)) {
+   /*Check if it's a file. This is special and gets printed differently*/
+   if(IS_DIRECTORY(newNode.mode)) {
       fprintf(stderr, "Not a regular file.\n");
       exit(EXIT_FAILURE);
    }
    
    for (i = 0; i < DIRECT_ZONES; i++) {
-      if(nodeSize < 0) {
+      if(nodeSize > 0) {
          if (nodeSize < fileSys.zonesize) {
             readSize = nodeSize;
          }
@@ -173,9 +172,9 @@ void copy() {
          fseek(fileSys.imageFile,
          fileSys.bootblock +
          (fileSys.zonesize * newNode.zone[i]), SEEK_SET);
-         fread(buffer, readSize, 1, fileSys.imageFile);
+         fread((void*)buffer, readSize, 1, fileSys.imageFile);
          nodeSize -= readSize;
-         fwrite(buffer, readSize, 1, dstpath);
+         fwrite((void*)buffer, readSize, 1, stdout);
       }
    }
    
