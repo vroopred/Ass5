@@ -295,6 +295,8 @@ void printVerbosePath(printNode node) {
 printNode searchZone(inode node) {
    int i, j;
    printNode retNode;
+   uint32_t indirectZones[INDIRECT_ZONE];
+   uint32_t dIndirectZones[INDIRECT_ZONE];
    // zone curZone;
    for(i = 0; i < DIRECT_ZONES; i++) {
       if(!node.zone[i])
@@ -304,12 +306,41 @@ printNode searchZone(inode node) {
          return retNode;
    }
 
-   // if(node.indirect) {
+   if(node.indirect) {
+      fseek(fileSys.imageFile, node.indirect * fileSys.zonesize, SEEK_SET);
+      fread(&indirectZones,sizeof(uint32_t*),INDIRECT_ZONE,fileSys.imageFile);
 
-   //    for (i = 0; i < INDIRECT_ZONE; i++){
-         
-   //    }
-   // }
+      for (i = 0; i < INDIRECT_ZONE; i++){
+         if(!indirectZones[i])
+            break;
+         retNode = searchInode(node, indirectZones[i]);
+         if(retNode.found)
+            return retNode;
+      }
+   }
+
+   if(node.two_indirect) {
+      fseek(fileSys.imageFile, node.two_indirect * fileSys.zonesize, SEEK_SET);
+      fread(&indirectZones,sizeof(uint32_t*),INDIRECT_ZONE,fileSys.imageFile);
+
+      for (i = 0; i < INDIRECT_ZONE; i++) {
+         fseek(fileSys.imageFile,indirectZones[i] * fileSys.zonesize,
+            SEEK_SET);
+         fread(&dIndirectZones,sizeof(uint32_t*),INDIRECT_ZONE,
+            fileSys.imageFile);
+         for(j = 0; j < INDIRECT_ZONE; j++ ) {
+            fseek(fileSys.imageFile, dIndirectZones[j] * fileSys.zonesize,
+               SEEK_SET);
+            fread(&dIndirectZones,sizeof(uint32_t*),INDIRECT_ZONE,
+               fileSys.imageFile);
+            if(!dIndirectZones[j])
+               break;
+            retNode = searchInode(node, indirectZones[j]);
+            if(retNode.found)
+               return retNode;
+         }
+      }
+   }
 
    return retNode;
 }
@@ -321,7 +352,8 @@ printNode searchInode(inode node, uint32_t zoneNum) {
    printNode newNode; 
    // uint32_t zoneNum = node.zone[0];
    int j = 0;
-
+   int filesRead = 0;
+   int filesPerZone = fileSys.zonesize/FILEENT_SIZE;
    num_files = node.size / FILEENT_SIZE;
 
    fseek(fileSys.imageFile, zoneNum * fileSys.zonesize, SEEK_SET);
@@ -370,29 +402,69 @@ void printFile(printNode node) {
    fileent file;
    inode newNode; 
    int i = 0;
-
+   int j;
+   uint32_t indirectZones[INDIRECT_ZONE];
+   int filesRead = 0;
+   int filesPerZone = fileSys.zonesize/FILEENT_SIZE;
    num_files = node.size / FILEENT_SIZE;
 
-   for(i = 0; i < num_files; i++) {
-      fseek(fileSys.imageFile, fileSys.bootblock + node.zone[0] *
-            fileSys.zonesize + FILEENT_SIZE * i, SEEK_SET);
-      fread(&file, sizeof(fileent), 1, fileSys.imageFile);
+   for(j = 0; j < DIRECT_ZONES; j++) {
+      for(i = 0; i < filesPerZone && filesRead < num_files; i++, filesRead++) {
+         fseek(fileSys.imageFile, fileSys.bootblock + node.zone[j] *
+               fileSys.zonesize + FILEENT_SIZE * i, SEEK_SET);
+         fread(&file, sizeof(fileent), 1, fileSys.imageFile);
 
-      if(file.ino == 0) 
-         continue;
+         if(file.ino == 0) 
+            continue;
 
-      fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize +
-            fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks +
-            fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) *
-            (file.ino - 1), SEEK_SET);
-      fread(&newNode, sizeof(inode), 1, fileSys.imageFile);
-      
+         fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize +
+               fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks +
+               fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) *
+               (file.ino - 1), SEEK_SET);
+         fread(&newNode, sizeof(inode), 1, fileSys.imageFile);
+         
 
-      printPermissions(newNode.mode);
-      printf("%10u ", newNode.size);
-      printFileName(file.name);
-      printf("\n");
+         printPermissions(newNode.mode);
+         printf("%10u ", newNode.size);
+         printFileName(file.name);
+         printf("\n");
+      }
    }
+
+   // printf("%d %d\n", filesRead, num_files);
+
+   if(node.indirect) {
+      fseek(fileSys.imageFile, node.indirect * fileSys.zonesize, SEEK_SET);
+      fread(&indirectZones,sizeof(uint32_t*),INDIRECT_ZONE,fileSys.imageFile);
+
+      for (i = 0; i < INDIRECT_ZONE; i++){
+         for(j = 0; j < filesPerZone && filesRead < num_files;j++,filesRead++){
+            fseek(fileSys.imageFile, fileSys.bootblock + indirectZones[i] *
+                  fileSys.zonesize + FILEENT_SIZE * j, SEEK_SET);
+            fread(&file, sizeof(fileent), 1, fileSys.imageFile);
+
+            if(file.ino == 0) 
+               continue;
+
+            if(file.ino == 0) 
+               continue;
+
+            fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize +
+                  fileSys.blocksize + fileSys.blocksize*fileSys.super.i_blocks+
+                  fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) *
+                  (file.ino - 1), SEEK_SET);
+            fread(&newNode, sizeof(inode), 1, fileSys.imageFile);
+            
+
+            printPermissions(newNode.mode);
+            printf("%10u ", newNode.size);
+            printFileName(file.name);
+            printf("\n");
+         }
+      }
+   }
+
+   // printf("%d %d\n", filesRead, num_files);
 
 }
 

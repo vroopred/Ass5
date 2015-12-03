@@ -1,5 +1,5 @@
 #define DIRECT_ZONES 7
-#define INDIRECT_ZONE 4
+#define INDIRECT_ZONE 8
 /* constants */
 #define PTABLE_OFFSET 0x1BE
 #define PMAGIC510 0x55
