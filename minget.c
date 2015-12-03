@@ -13,9 +13,6 @@ extern int verbose;
 FILE *dstpath;
 
 int main(int argc, char *argv[]) {
-   /*minget [ -v ] [ -p part [ -s subpart ] ] imagefile srcpath [ dstpath ]
-    Minget copies a regular file from the given source path to the given destination
-    path. If the destination path is ommitted, it copies to stdout*/
    
    extern char *optarg;
    extern int optind;
@@ -44,22 +41,26 @@ int main(int argc, char *argv[]) {
             break;
          case 'h':
             fprintf(stderr,
-                    "usage: minget [ -v ] [ -p part [ -s subpart ] ] imagefile srcpath [ dstpath ]\n"
-                    "Options:\n"
-                    "-p part    --- select partition for filesystem (default: none)\n"
-                    "-s sub     --- select subpartition for filesystem (default: none)\n"
-                    "-h help    --- print usage information and exit\n"
-                    "-v verbose --- increase verbosity level\n"
+            "usage: minget [ -v ] [ -p part [ -s subpart ] ]"
+                    "imagefile srcpath [ dstpath ]\n"
+            "Options:\n"
+            "-p part    --- select partition for filesystem (default: none)\n"
+             "-s sub     --- select subpartition for filesystem"
+                    "(default: none)\n"
+             "-h help    --- print usage information and exit\n"
+             "-v verbose --- increase verbosity level\n"
                     );
             exit(EXIT_FAILURE);
          default:
             fprintf(stderr,
-                    "usage: minget [ -v ] [ -p part [ -s subpart ] ] imagefile srcpath [ dstpath ]\n"
-                    "Options:\n"
-                    "-p part    --- select partition for filesystem (default: none)\n"
-                    "-s sub     --- select subpartition for filesystem (default: none)\n"
-                    "-h help    --- print usage information and exit\n"
-                    "-v verbose --- increase verbosity level\n"
+             "usage: minget [ -v ] [ -p part [ -s subpart ] ]"
+                    "imagefile srcpath [ dstpath ]\n"
+             "Options:\n"
+              "-p part    --- select partition for filesystem (default: none)\n"
+              "-s sub     --- select subpartition for filesystem"
+                  "(default: none)\n"
+              "-h help    --- print usage information and exit\n"
+              "-v verbose --- increase verbosity level\n"
                     );
             exit(EXIT_FAILURE);
             
@@ -110,7 +111,8 @@ int main(int argc, char *argv[]) {
    
    /*Set the bootblock*/
    fileSys.bootblock = 0;
-   /*Partition => call findPartition() for part && subpart (disk starts at first
+   /*Partition => call findPartition() for part && subpart 
+    (disk starts at first
     sector of part for the subpart but everything else is the same)
     Superblock
     get inode
@@ -173,7 +175,8 @@ void copy() {
          }
          else {
             fseek(fileSys.imageFile,
-               fileSys.bootblock + (fileSys.zonesize * newNode.zone[i]), SEEK_SET);
+               fileSys.bootblock +
+                  (fileSys.zonesize * newNode.zone[i]), SEEK_SET);
             fread(buffer, readSize, 1, fileSys.imageFile);
          }
          nodeSize -= readSize;

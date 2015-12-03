@@ -274,8 +274,9 @@ printNode searchInode(inode node, uint32_t zoneNum) {
             continue;
          if(fileCmp(file.name)) {
             fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize
-                  + fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks
-                  + fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) *
+                  + fileSys.blocksize + fileSys.blocksize
+                  * fileSys.super.i_blocks + fileSys.blocksize
+                  * fileSys.super.z_blocks + sizeof(inode) *
                   (file.ino - 1), SEEK_SET);
             fread(&node, sizeof(inode), 1, fileSys.imageFile);
             if(*fileSys.path != '\0') {
