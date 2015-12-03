@@ -155,8 +155,8 @@ void copy() {
       exit(EXIT_FAILURE);
    }
 
-   /*Check if it's a file. This is special and gets printed differently*/
-   if(IS_DIRECTORY(newNode.mode)) {
+   /*Check if it is not a regular file.*/
+   if(!MIN_ISREG(newNode.mode)) {
       fprintf(stderr, "Not a regular file.\n");
       exit(EXIT_FAILURE);
    }
@@ -169,10 +169,19 @@ void copy() {
          else {
             readSize = fileSys.zonesize;
          }
-         fseek(fileSys.imageFile,
-         fileSys.bootblock +
-         (fileSys.zonesize * newNode.zone[i]), SEEK_SET);
-         fread((void*)buffer, readSize, 1, fileSys.imageFile);
+         /*If 0 appears a a zone of a file, it means
+          that the entire zone referred to is to be treated as
+          all zeros.*/
+         if (newNode.zone[i] == 0) {
+            memset(buffer, 0, readSize);
+         }
+         else {
+            fseek(fileSys.imageFile,
+                  fileSys.bootblock +
+                  (fileSys.zonesize * newNode.zone[i]), SEEK_SET);
+            fread(buffer, readSize, 1, fileSys.imageFile);
+         }
+         
          nodeSize -= readSize;
          fwrite((void*)buffer, readSize, 1, stdout);
       }
