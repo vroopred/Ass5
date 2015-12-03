@@ -191,7 +191,7 @@ void findSuperBlock() {
          "\tmax_file%12u\n"
          "\tmagic         0x%4x\n"
          "\tzones%15u\n"
-         "\tfileSys.blocksize%11u\n"
+         "\tblocksize%11u\n"
          "\tsubversion%10u\n"
          , super.ninodes, super.i_blocks, super.z_blocks
          , super.firstdata, super.log_zone_size
@@ -254,7 +254,26 @@ void findPath() {
          );
    }
 
-   newNode = findPathToInode(node);
+   //Complicated attempt to print no path...
+   //Due to time crunch
+   if(!keepPath) {
+      printf("/:\n");
+      newNode.mode = node.mode;
+      newNode.size = node.size;
+      memcpy(newNode.zone, node.zone,sizeof(uint32_t) * DIRECT_ZONES);//This could be an issue...
+      newNode.indirect = node.indirect;
+      newNode.two_indirect = node.two_indirect;
+      *newNode.name = '\0';
+      printFile(newNode);
+      return;
+   }
+
+   newNode = searchZone(node);
+
+   if(!newNode.found) {
+      printf("File not found\n");
+      exit(0);
+   }
 
    //Check if it's a file. This is special and gets printed differently
    if(!IS_DIRECTORY(newNode.mode)) {
@@ -264,24 +283,22 @@ void findPath() {
       return;
    }
    else {
-      //If keepPath has a value, aka not null, print it
-      if(keepPath)
-         printf("%s:\n", keepPath);
-      else//Else just print the home
-         printf("/:\n");
+      printf("%s:\n", keepPath);
    }
 
    printFile(newNode);
 }
 
+printNode searchZone(inode node) {
+   return searchInode(node, node.zone[0]);
+}
+
 //Recursively finds path to correct file and returns a printing Node
-printNode findPathToInode(inode node) {
+printNode searchInode(inode node, uint32_t zoneNum) {
    uint32_t num_files;
    fileent file;
    printNode newNode; 
-   uint32_t zoneNum = node.zone[0];
-   uint32_t zoneIncrement = fileSys.zonesize;
-   // int i = 0;
+   // uint32_t zoneNum = node.zone[0];
    int j = 0;
 
    num_files = node.size / FILEENT_SIZE;
@@ -291,8 +308,7 @@ printNode findPathToInode(inode node) {
 
    if(fileSys.path != 0) {
       for(j = 0; j < num_files; j++) {
-         fseek(fileSys.imageFile, fileSys.bootblock + zoneNum *
-               fileSys.zonesize + FILEENT_SIZE * j, SEEK_SET);
+         fseek(fileSys.imageFile, fileSys.bootblock + zoneNum * fileSys.zonesize + FILEENT_SIZE * j, SEEK_SET);
          fread(&file, sizeof(fileent), 1, fileSys.imageFile);
 
          if(file.ino == 0) 
@@ -300,14 +316,10 @@ printNode findPathToInode(inode node) {
 
          if(fileCmp(file.name)) {
 
-            fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize +
-                  fileSys.blocksize + fileSys.blocksize *
-                  fileSys.super.i_blocks + fileSys.blocksize *
-                  fileSys.super.z_blocks + sizeof(inode) * (file.ino - 1),
-                  SEEK_SET);
+            fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize + fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks + fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
             fread(&node, sizeof(inode), 1, fileSys.imageFile);
             if(*fileSys.path != '\0') {
-               newNode = findPathToInode(node);
+               newNode = searchZone(node);
 
                if(*newNode.name == '\0') {
                   memcpy(newNode.name, file.name, DIRSIZ);
@@ -315,19 +327,24 @@ printNode findPathToInode(inode node) {
 
                return newNode;
             }
+            else {
+               newNode.mode = node.mode;
+               newNode.size = node.size;
+               memcpy(newNode.zone, node.zone,sizeof(uint32_t) * DIRECT_ZONES);//This could be an issue...
+               newNode.indirect = node.indirect;
+               newNode.two_indirect = node.two_indirect;
+               *newNode.name = '\0';
+               newNode.found = 1;
+               return newNode;
+            }
          }  
       }
    }
-   newNode.mode = node.mode;
-   newNode.size = node.size;
-   /*This could be an issue...*/
-   memcpy(newNode.zone, node.zone,sizeof(uint32_t) * DIRECT_ZONES);
-   newNode.indirect = node.indirect;
-   newNode.two_indirect = node.two_indirect;
-   *newNode.name = '\0';
+   newNode.found = 0;
 
    return newNode;
 }
+
 
 void printFile(printNode node) {
    uint32_t num_files;

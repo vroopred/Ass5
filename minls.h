@@ -96,6 +96,7 @@ uint32_t zone[DIRECT_ZONES];
 uint32_t indirect;
 uint32_t two_indirect;
 char name[DIRSIZ];
+int found;
 } printNode;
 
 typedef struct filesystem {
@@ -117,4 +118,5 @@ void printFile(printNode node);
 void printFileName(char* fileName);
 void printPermissions(uint16_t mode);
 int fileCmp(char* cmp);
-printNode findPathToInode(inode node);
+printNode searchInode(inode node, uint32_t zoneNum);
+printNode searchZone(inode node);
