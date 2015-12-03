@@ -1,4 +1,5 @@
 #define DIRECT_ZONES 7
+#define INDIRECT_ZONE 4
 /* constants */
 #define PTABLE_OFFSET 0x1BE
 #define PMAGIC510 0x55
@@ -91,10 +92,17 @@ uint32_t unused;
 
 typedef struct printNode {
 uint16_t mode; /* mode */
+uint16_t links; /* number or links */
+uint16_t uid;
+uint16_t gid;
 uint32_t size;
+int32_t atime;
+int32_t mtime;
+int32_t ctime;
 uint32_t zone[DIRECT_ZONES];
 uint32_t indirect;
 uint32_t two_indirect;
+uint32_t unused;
 char name[DIRSIZ];
 int found;
 } printNode;
@@ -120,3 +128,4 @@ void printPermissions(uint16_t mode);
 int fileCmp(char* cmp);
 printNode searchInode(inode node, uint32_t zoneNum);
 printNode searchZone(inode node);
+void printVerbosePath(printNode node);

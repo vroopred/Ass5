@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
    }
    /*Set the bootblock*/
    fileSys.bootblock = 0;
-   /*Partition => call findPartition() for part && subpart (disk starts at first
+   /*Partition => call findPartition() for part && subpart (disk starts at firs
     sector of part for the subpart but everything else is the same)
     Superblock
     get inode
@@ -137,7 +137,7 @@ void findPartition(int partitionNum) {
       /*Print Partition Table*/
       printf("Partition table:\n");
       printf("----Start----      ------End-----\n");
-      printf("Boot head  sec  cyl Type head  sec  cyl      First       Size\n");
+      printf("Boot head  sec  cyl Type head  sec  cyl      First      Size\n");
       /*Loop through each of the possible 4 partitions*/
       for(i = 0; i < 4; i++) {
          printf("0x%2x", partitionTablePrint->bootind);
@@ -205,9 +205,6 @@ void findSuperBlock() {
 void findPath() {
    inode node;
    printNode newNode;
-   time_t aTime;
-   time_t mTime;
-   time_t cTime;
    char* keepPath = fileSys.path;
 
    fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize +
@@ -215,55 +212,16 @@ void findPath() {
          fileSys.blocksize * fileSys.super.z_blocks, SEEK_SET);
    fread(&node, sizeof(inode), 1, fileSys.imageFile);
 
-   if(verbose) {
-      aTime = node.atime;
-      mTime = node.mtime;
-      cTime = node.ctime;
-      printf(
-         "File inode:\n"
-         "\tuint16_t mode 0x%9x  (", node.mode);
-      printPermissions(node.mode);
-
-      printf(
-         ")\n\tuint16_t links %10hu\n"
-         "\tuint16_t uid %12hu\n"
-         "\tuint16_t gid %12hu\n"
-         "\tuint32_t size %11u\n"
-         "\tuint32_t atime %8u %s"
-         "\tuint32_t mtime %8u %s"
-         "\tuint32_t ctime %8u %s"
-         , node.links, node.uid, node.gid, node.size
-         , node.atime, ctime(&aTime), node.mtime, ctime(&mTime)
-         , node.ctime, ctime(&cTime)
-         );
-
-      printf(
-         "\tDirect zones:\n"
-         "\t\t  zone[0]  = %8u\n"
-         "\t\t  zone[1]  = %8u\n"
-         "\t\t  zone[2]  = %8u\n"
-         "\t\t  zone[3]  = %8u\n"
-         "\t\t  zone[4]  = %8u\n"
-         "\t\t  zone[5]  = %8u\n"
-         "\t\t  zone[6]  = %8u\n"
-         "\tuint32_t    indirect %8u\n"
-         "\tuint32_t    double   %8u\n"
-         , node.zone[0], node.zone[1], node.zone[2]
-         , node.zone[3], node.zone[4], node.zone[5]
-         , node.zone[6], node.indirect, node.two_indirect
-         );
-   }
+   
 
    //Complicated attempt to print no path...
    //Due to time crunch
    if(!keepPath) {
       printf("/:\n");
-      newNode.mode = node.mode;
-      newNode.size = node.size;
-      memcpy(newNode.zone, node.zone,sizeof(uint32_t) * DIRECT_ZONES);//This could be an issue...
-      newNode.indirect = node.indirect;
-      newNode.two_indirect = node.two_indirect;
+      memcpy(&newNode, &node, sizeof(inode));
       *newNode.name = '\0';
+      if(verbose)
+         printVerbosePath(newNode);
       printFile(newNode);
       return;
    }
@@ -272,9 +230,11 @@ void findPath() {
 
    if(!newNode.found) {
       printf("File not found\n");
-      exit(0);
+      exit(-1);
    }
 
+   if(verbose)
+      printVerbosePath(newNode);
    //Check if it's a file. This is special and gets printed differently
    if(!IS_DIRECTORY(newNode.mode)) {
       printPermissions(newNode.mode);
@@ -285,12 +245,73 @@ void findPath() {
    else {
       printf("%s:\n", keepPath);
    }
-
    printFile(newNode);
 }
 
+
+void printVerbosePath(printNode node) {
+   time_t aTime;
+   time_t mTime;
+   time_t cTime;
+   aTime = node.atime;
+   mTime = node.mtime;
+   cTime = node.ctime;
+   printf(
+   "File inode:\n"
+   "\tuint16_t mode      0x%4x  (", node.mode);
+   printPermissions(node.mode);
+
+   printf(
+   ")\n\tuint16_t links %10hu\n"
+   "\tuint16_t uid %12hu\n"
+   "\tuint16_t gid %12hu\n"
+   "\tuint32_t size %11u\n"
+   "\tuint32_t atime %8u %s"
+   "\tuint32_t mtime %8u %s"
+   "\tuint32_t ctime %8u %s"
+   , node.links, node.uid, node.gid, node.size
+   , node.atime, ctime(&aTime), node.mtime, ctime(&mTime)
+   , node.ctime, ctime(&cTime)
+   );
+
+   printf(
+   "\tDirect zones:\n"
+   "\t\t  zone[0]  = %8u\n"
+   "\t\t  zone[1]  = %8u\n"
+   "\t\t  zone[2]  = %8u\n"
+   "\t\t  zone[3]  = %8u\n"
+   "\t\t  zone[4]  = %8u\n"
+   "\t\t  zone[5]  = %8u\n"
+   "\t\t  zone[6]  = %8u\n"
+   "\tuint32_t    indirect %8u\n"
+   "\tuint32_t    double   %8u\n"
+   , node.zone[0], node.zone[1], node.zone[2]
+   , node.zone[3], node.zone[4], node.zone[5]
+   , node.zone[6], node.indirect, node.two_indirect
+      );
+}
+
+
 printNode searchZone(inode node) {
-   return searchInode(node, node.zone[0]);
+   int i, j;
+   printNode retNode;
+   // zone curZone;
+   for(i = 0; i < DIRECT_ZONES; i++) {
+      if(!node.zone[i])
+         break;
+      retNode = searchInode(node, node.zone[i]);
+      if(retNode.found)
+         return retNode;
+   }
+
+   // if(node.indirect) {
+
+   //    for (i = 0; i < INDIRECT_ZONE; i++){
+         
+   //    }
+   // }
+
+   return retNode;
 }
 
 //Recursively finds path to correct file and returns a printing Node
@@ -308,15 +329,17 @@ printNode searchInode(inode node, uint32_t zoneNum) {
 
    if(fileSys.path != 0) {
       for(j = 0; j < num_files; j++) {
-         fseek(fileSys.imageFile, fileSys.bootblock + zoneNum * fileSys.zonesize + FILEENT_SIZE * j, SEEK_SET);
+         fseek(fileSys.imageFile, fileSys.bootblock + zoneNum * 
+            fileSys.zonesize + FILEENT_SIZE * j, SEEK_SET);
          fread(&file, sizeof(fileent), 1, fileSys.imageFile);
 
          if(file.ino == 0) 
             continue;
-
          if(fileCmp(file.name)) {
-
-            fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize + fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks + fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) * (file.ino - 1), SEEK_SET);
+            fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize
+             + fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks
+              + fileSys.blocksize * fileSys.super.z_blocks + sizeof(inode) *
+               (file.ino - 1), SEEK_SET);
             fread(&node, sizeof(inode), 1, fileSys.imageFile);
             if(*fileSys.path != '\0') {
                newNode = searchZone(node);
@@ -328,11 +351,7 @@ printNode searchInode(inode node, uint32_t zoneNum) {
                return newNode;
             }
             else {
-               newNode.mode = node.mode;
-               newNode.size = node.size;
-               memcpy(newNode.zone, node.zone,sizeof(uint32_t) * DIRECT_ZONES);//This could be an issue...
-               newNode.indirect = node.indirect;
-               newNode.two_indirect = node.two_indirect;
+               memcpy(&newNode, &node, sizeof(inode));
                *newNode.name = '\0';
                newNode.found = 1;
                return newNode;
@@ -403,6 +422,10 @@ int fileCmp(char* cmp) {
          return 0;
       }
    } 
+   if(*cmp) {
+      fileSys.path = keepPath;
+      return 0;
+   }
    return 1;
 }
 
