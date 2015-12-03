@@ -170,15 +170,10 @@ void copy() {
          else {
             readSize = fileSys.zonesize;
          }
-         if (!newNode.zone[i]) {
-            memset(buffer, 0, readSize);
-         }
-         else {
-            fseek(fileSys.imageFile,
-               fileSys.bootblock +
-                  (fileSys.zonesize * newNode.zone[i]), SEEK_SET);
-            fread(buffer, readSize, 1, fileSys.imageFile);
-         }
+         fseek(fileSys.imageFile,
+         fileSys.bootblock +
+         (fileSys.zonesize * newNode.zone[i]), SEEK_SET);
+         fread(buffer, readSize, 1, fileSys.imageFile);
          nodeSize -= readSize;
          fwrite(buffer, readSize, 1, dstpath);
       }
