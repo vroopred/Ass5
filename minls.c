@@ -280,6 +280,7 @@ printNode findPathToInode(inode node) {
    fileent file;
    printNode newNode; 
    uint32_t zoneNum = node.zone[0];
+   uint32_t zoneIncrement = fileSys.zonesize;
    // int i = 0;
    int j = 0;
 
