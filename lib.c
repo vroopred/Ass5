@@ -220,6 +220,7 @@ printNode searchZone(inode node) {
    uint32_t dIndirectZones[INDIRECT_ZONE];
    // zone curZone;
    for(i = 0; i < DIRECT_ZONES; i++) {
+      //Search all indirect zones
       if(!node.zone[i])
          break;
       retNode = searchInode(node, node.zone[i]);
@@ -228,6 +229,7 @@ printNode searchZone(inode node) {
    }
    
    if(node.indirect) {
+      //get first indirect
       fseek(fileSys.imageFile, node.indirect * fileSys.zonesize, SEEK_SET);
       fread(&indirectZones,sizeof(uint32_t),INDIRECT_ZONE,fileSys.imageFile);
       
@@ -241,10 +243,12 @@ printNode searchZone(inode node) {
    }
    
    if(node.two_indirect) {
+      //Getting first dIindirect
       fseek(fileSys.imageFile, node.two_indirect * fileSys.zonesize, SEEK_SET);
       fread(&indirectZones,sizeof(uint32_t),INDIRECT_ZONE,fileSys.imageFile);
       
       for (i = 0; i < INDIRECT_ZONE; i++) {
+         //Get second indirect
          fseek(fileSys.imageFile,indirectZones[i] * fileSys.zonesize,
                SEEK_SET);
          fread(&dIndirectZones,sizeof(uint32_t),INDIRECT_ZONE,
@@ -280,14 +284,18 @@ printNode searchInode(inode node, uint32_t zoneNum) {
    fseek(fileSys.imageFile, zoneNum * fileSys.zonesize, SEEK_SET);
    fread(&file, sizeof(fileent), 1, fileSys.imageFile);
    
-   if(fileSys.path != 0) {
+   if(fileSys.path) {
+      //if the path hasn't been found
       for(j = 0; j < filesPerZone && filesRead < num_files; j++, filesRead++) {
+         //Check until the end of files per zone or end of files total
          fseek(fileSys.imageFile, fileSys.bootblock + zoneNum *
                fileSys.zonesize + FILEENT_SIZE * j, SEEK_SET);
          fread(&file, sizeof(fileent), 1, fileSys.imageFile);
          
+         //If file has nothing, continue to next
          if(file.ino == 0)
             continue;
+         //Check file against the path that is being searched
          if(fileCmp(file.name)) {
             fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize
                   + fileSys.blocksize + fileSys.blocksize
@@ -295,7 +303,9 @@ printNode searchInode(inode node, uint32_t zoneNum) {
                   * fileSys.super.z_blocks + sizeof(inode) *
                   (file.ino - 1), SEEK_SET);
             fread(&node, sizeof(inode), 1, fileSys.imageFile);
+            //If path isn't complete, continue searching
             if(*fileSys.path != '\0') {
+               //Continue looking if the path isn't completely searched
                newNode = searchZone(node);
                   
                if(newNode.name && *newNode.name == '\0') {
@@ -305,6 +315,7 @@ printNode searchInode(inode node, uint32_t zoneNum) {
                return newNode;
             }
             else {
+               //Set return node to have nothing other than a found file
                memcpy(&newNode, &node, sizeof(inode));
                *newNode.name = '\0';
                newNode.found = 1;
@@ -331,6 +342,7 @@ void printFile(printNode node) {
    num_files = node.size / FILEENT_SIZE;
    
    for(j = 0; j < DIRECT_ZONES; j++) {
+      //Search direct zones
       for(i = 0; i < filesPerZone && filesRead < num_files; i++, filesRead++) {
          fseek(fileSys.imageFile, fileSys.bootblock + node.zone[j] *
                fileSys.zonesize + FILEENT_SIZE * i, SEEK_SET);
@@ -353,9 +365,9 @@ void printFile(printNode node) {
       }
    }
    
-   // printf("%d %d\n", filesRead, num_files);
    
    if(node.indirect) {
+      //search indirect zones
       fseek(fileSys.imageFile, node.indirect * fileSys.zonesize, SEEK_SET);
       fread(&indirectZones,sizeof(uint32_t),INDIRECT_ZONE,fileSys.imageFile);
       
@@ -387,6 +399,7 @@ void printFile(printNode node) {
    }
    
    if(node.two_indirect) {
+      //search double indirect zones
       fseek(fileSys.imageFile, node.two_indirect * fileSys.zonesize, SEEK_SET);
       fread(&dIndirectZones,sizeof(uint32_t),INDIRECT_ZONE,fileSys.imageFile);
       for(k = 0; k < INDIRECT_ZONE; k++) {
@@ -425,7 +438,6 @@ void printFile(printNode node) {
          }
       }
    }
-   // printf("%d %d\n", filesRead, num_files);
    
 }
 
@@ -464,7 +476,7 @@ int fileCmp(char* cmp) {
 
 void printFileName(char* fileName) {
    int i = DIRSIZ; 
-   
+   //Print file name to either 60 or null
    while(i-- && *fileName != '\0') {
       putchar(*fileName++);
    }
