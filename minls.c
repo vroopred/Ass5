@@ -7,11 +7,12 @@
 #include <getopt.h>
 #include "lib.h"
 
-
+/*External variables used from the globals of lib.c*/
 extern filesystem fileSys;
 extern int verbose;
 
 int main(int argc, char *argv[]) {
+   /*getopt is used to easily parse the flags and arguments*/
    extern char *optarg;
    extern int optind;
    char* imagefile = 0;
@@ -88,12 +89,7 @@ int main(int argc, char *argv[]) {
    }
    /*Set the bootblock*/
    fileSys.bootblock = 0;
-   /*Partition => call findPartition() for part && subpart (disk starts at firs
-    sector of part for the subpart but everything else is the same)
-    Superblock
-    get inode
-    print listing
-    close file*/
+   /*Partition => call findPartition() for part && subpart*/
    if (fileSys.part > -1) {
       findPartition(fileSys.part);
        if (fileSys.subPart > -1) {

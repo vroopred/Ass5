@@ -7,16 +7,15 @@
 #include "lib.h"
 
 void copy();
-
+/*External variables used from the globals of lib.c*/
 extern filesystem fileSys;
 extern int verbose;
 FILE *dstpath;
 
 int main(int argc, char *argv[]) {
-   
+   /*getopt is used to easily parse the flags and arguments*/
    extern char *optarg;
    extern int optind;
-   FILE* dstpath = NULL;
    char* imagefile = 0;
    int c = getopt(argc, argv, "vp:s:h");
    int sflag = 0, pflag = 0;
@@ -110,13 +109,7 @@ int main(int argc, char *argv[]) {
    
    /*Set the bootblock*/
    fileSys.bootblock = 0;
-   /*Partition => call findPartition() for part && subpart 
-    (disk starts at first
-    sector of part for the subpart but everything else is the same)
-    Superblock
-    get inode
-    print listing
-    close file*/
+   /*Partition => call findPartition() for part && subpart*/
    if (fileSys.part > -1) {
       findPartition(fileSys.part);
       if (fileSys.subPart > -1) {
@@ -128,11 +121,7 @@ int main(int argc, char *argv[]) {
    return 0;
 }
 
-   /*1. Using findPath, get the inode of the file from that path
-     2. Check if its not a directory
-    3. Get the contents of the file
-    */
-
+/*Copies over the file from the srcpath to dstpath or stdout*/
 void copy() {
    inode node;
    printNode newNode;
@@ -141,12 +130,13 @@ void copy() {
    int32_t nodeSize;
    int32_t readSize;
    
+   /*Buffer will store the file contents from zone to zone*/
    buffer = malloc(fileSys.zonesize);
    fseek(fileSys.imageFile, fileSys.bootblock + fileSys.blocksize +
          fileSys.blocksize + fileSys.blocksize * fileSys.super.i_blocks +
          fileSys.blocksize * fileSys.super.z_blocks, SEEK_SET);
    fread(&node, sizeof(inode), 1, fileSys.imageFile);
-   
+   /*newNode is the inode of the file*/
    newNode = searchZone(node);
    nodeSize = newNode.size;
    
@@ -160,12 +150,17 @@ void copy() {
       fprintf(stderr, "Not a regular file.\n");
       exit(EXIT_FAILURE);
    }
-   
+   /*Loop through the 7 direct zones to get the file contents*/
    for (i = 0; i < DIRECT_ZONES; i++) {
+      /*As long as you havent read nodeSize keep looping
+       though the zones to read zoneSize*/
       if(nodeSize > 0) {
+         /*If nodeSize is less than the zonesize, just read nodeSize 
+          amount of the zone*/
          if (nodeSize < fileSys.zonesize) {
             readSize = nodeSize;
          }
+         /*ELse read the whole zone*/
          else {
             readSize = fileSys.zonesize;
          }
@@ -175,15 +170,17 @@ void copy() {
          if (newNode.zone[i] == 0) {
             memset(buffer, 0, readSize);
          }
+         /*Go to the position of the zone's contents and read readSize*/
          else {
             fseek(fileSys.imageFile,
                   fileSys.bootblock +
                   (fileSys.zonesize * newNode.zone[i]), SEEK_SET);
             fread(buffer, readSize, 1, fileSys.imageFile);
          }
-         
+         /*Subtract the amount read from the current zone and
+          write the buffer to the destination*/
          nodeSize -= readSize;
-         fwrite((void*)buffer, readSize, 1, stdout);
+         fwrite((void*)buffer, readSize, 1, dstpath);
       }
    }
    

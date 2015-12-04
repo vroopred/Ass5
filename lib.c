@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -8,9 +7,13 @@
 #include <getopt.h>
 #include "lib.h"
 
+/*Globals for filesystem variable and verbose flag*/
 filesystem fileSys;
 int verbose;
 
+/*Finds the partition table and indicated partition. Sets the values
+ and moves the bootblock field which is used to indicate where the 
+ disk starts to the correct location based on the partitions info*/
 void findPartition(int partitionNum) {
    /*
     1. check if byte 510 == PMAGIC510 && byte 511 == PMAGIC511
@@ -23,6 +26,7 @@ void findPartition(int partitionNum) {
    partition table[4];
    partition *partitionTable = NULL;
    partition *partitionTablePrint = NULL;
+   /*check if byte 510 == PMAGIC510 && byte 511 == PMAGIC511*/
    fseek(fileSys.imageFile, fileSys.bootblock, SEEK_SET);
    fread((void*)block, BLOCK_SIZE, 1, fileSys.imageFile);
    if (block[510] != PMAGIC510 || block[511] != PMAGIC511) {
@@ -31,11 +35,12 @@ void findPartition(int partitionNum) {
    }
    fseek(fileSys.imageFile, (fileSys.bootblock) + PTABLE_OFFSET, SEEK_SET);
    fread((void*)table, sizeof(partition), 4, fileSys.imageFile);
+   /*Check the type of the partition table to make sure it is a minix
+    partition table*/
    if (table->type != MINIXPART) {
       fprintf(stderr, "Not a MINIX partition table\n");
       exit(EXIT_FAILURE);
    }
-   /*There has to be a better way to do this, but it will work for now*/
    partitionTable = (partition*)table;
    partitionTablePrint = partitionTable;
    if(verbose) {
@@ -59,6 +64,7 @@ void findPartition(int partitionNum) {
          partitionTablePrint++;
       }
    }
+   /*Set partitionTable to the partition part*/
    partitionTable = partitionTable + partitionNum;
    /*Set the bootblock to the first sector => lfirst sector in the case
     that there is subpart or for when you want to find the superblock*/
@@ -66,19 +72,17 @@ void findPartition(int partitionNum) {
    
 }
 
+/*Finds the superblock and sets the fields*/
 void findSuperBlock() {
    superblock super;
-   
-   /*Check the magic number to make sure it is a minix filesystem
-    Set the fileSys.zonesize =
-    superblock->fileSys.blocksize <<superblock->log_zone_size*/
    fseek(fileSys.imageFile, BLOCK_SIZE + fileSys.bootblock, SEEK_SET);
    fread(&super, sizeof(superblock), 1, fileSys.imageFile);
    fileSys.blocksize = super.blocksize;
+   /*Set the zonesize*/
    fileSys.zonesize = fileSys.blocksize << super.log_zone_size;
    
    fileSys.super = super;
-   
+   /*Check the magic number to make sure it is a minix filesystem*/
    if (super.magic != MIN_MAGIC) {
       fprintf(stderr, "Not a MINIX filesystem. Incorrect magic number\n");
       exit(EXIT_FAILURE);
