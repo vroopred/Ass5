@@ -102,6 +102,18 @@ void findSuperBlock() {
              "\tzones%15u\n"
              "\tblocksize%11u\n"
              "\tsubversion%10u\n"
+             "Computed Fields:\n"
+             "\tversion            3\n"
+             "\tfirstImap          2\n"
+             "\tfirstZmap          3\n"
+             "\tfirstIblock        4\n"
+             "\tzonesize        4096\n"
+             "\tptrs_per_zone   1024\n"
+             "\tino_per_block     64\n"
+             "\twrongended         0\n"
+             "\tfileent_size      64\n"
+             "\tmax_filename      60\n"
+             "\tent_per_zone      64\n"
              , super.ninodes, super.i_blocks, super.z_blocks
              , super.firstdata, super.log_zone_size
              , fileSys.zonesize , super.max_file
