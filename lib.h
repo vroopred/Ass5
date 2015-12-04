@@ -1,5 +1,5 @@
 #define DIRECT_ZONES 7
-#define INDIRECT_ZONE 8
+#define INDIRECT_ZONE 1024
 /* constants */
 #define PTABLE_OFFSET 0x1BE
 #define PMAGIC510 0x55
@@ -116,6 +116,7 @@ typedef struct filesystem {
    int subPart;
    uint32_t zonesize;
    uint32_t blocksize;
+   uint32_t ptrs;
 } filesystem;
 
 

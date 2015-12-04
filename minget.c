@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
              "usage: minget [ -v ] [ -p part [ -s subpart ] ]"
                     "imagefile srcpath [ dstpath ]\n"
              "Options:\n"
-              "-p part    --- select partition for filesystem (default: none)\n"
+            "-p part    --- select partition for filesystem (default: none)\n"
               "-s sub     --- select subpartition for filesystem"
                   "(default: none)\n"
               "-h help    --- print usage information and exit\n"
